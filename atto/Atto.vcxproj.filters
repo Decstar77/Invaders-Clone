@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="containers">
+      <UniqueIdentifier>{FB7E5497-E736-96E4-503E-6F403C1531D5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="vendor">
+      <UniqueIdentifier>{B3738122-9F15-ACF8-88D0-BF4C74113349}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="vendor\stb_image">
+      <UniqueIdentifier>{0DA0BA59-F998-D9AB-22CB-BE300E23B9B7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="vendor\stb_vorbis">
+      <UniqueIdentifier>{FF208FAF-6B37-8D45-B4AE-186720045ECD}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\AttoDefines.h" />
+    <ClInclude Include="src\SpaceInvaders.h" />
+    <ClInclude Include="src\containers\AttoFixedHashMap.h">
+      <Filter>containers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\containers\AttoFixedList.h">
+      <Filter>containers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\containers\AttoFixedString.h">
+      <Filter>containers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\containers\AttoList.h">
+      <Filter>containers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\containers\AttoString.h">
+      <Filter>containers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\containers\AttoTransientList.h">
+      <Filter>containers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vendor\stb_image\std_image.h">
+      <Filter>vendor\stb_image</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\AssetLoading.cpp" />
+    <ClCompile Include="src\Main.cpp" />
+    <ClCompile Include="src\SpaceInvaders.cpp" />
+    <ClCompile Include="src\UseDedicatedGPU.cpp" />
+    <ClCompile Include="src\containers\AttoString.cpp">
+      <Filter>containers</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\stb_vorbis\stb_vorbis.c">
+      <Filter>vendor\stb_vorbis</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>
