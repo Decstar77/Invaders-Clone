@@ -5,6 +5,10 @@ local GLM_DIR = "vendor/glm"
 local OPENAL_DIR = "vendor/openal"
 local AUDIO_FILE_DIR = "vendor/audio"
 local FREE_TYPE_DIR = "vendor/freetype"
+local ENET_DIR = "vendor/enet"
+local STB_DIR = "vendor/stb"
+local LUA_DIR = "vendor/lua"
+local LUA_BRIDGE_DIR = "vendor/luabridge"
 
 solution "Atto"
     location("")
@@ -14,14 +18,12 @@ solution "Atto"
     architecture "x64"
     
     filter "configurations:Release"
-        defines
-        {
+        defines {
             "NDEBUG"
         }
         optimize "Full"
     filter "configurations:Debug*"
-        defines
-        {
+        defines{
             "_DEBUG"
         }
         optimize "Debug"
@@ -62,26 +64,34 @@ project "Atto"
         path.join(GLAD_DIR, "include"),
         path.join(OPENAL_DIR, "include"),
         path.join(FREE_TYPE_DIR, "include"),
+        path.join(ENET_DIR, "include"),
+        path.join(LUA_DIR, "include"),
+        STB_DIR,
         GLM_DIR,
         AUDIO_FILE_DIR,
+        LUA_BRIDGE_DIR,
         "atto/src/"
     }
     
     libdirs
     {
         path.join(OPENAL_DIR, "lib"),
-        path.join(ASSIMP_DIR, "lib")
+        path.join(ASSIMP_DIR, "lib"),
+        path.join(LUA_DIR, "lib")
     }
     
     files {
         "%{prj.name}/src/**.h",
         "%{prj.name}/src/**.c",
         "%{prj.name}/src/**.cpp",
-        "%{prj.name}/src/**.hpp"
+        "%{prj.name}/src/**.hpp",
+        path.join(STB_DIR, "stb_vorbis/stb_vorbis.c")
     }
 
+    links { "opengl32", "glfw", "glad", "OpenAL32", "freetype", "enet", "lua54", "assimp" }
+
     filter "system:windows"
-        links { "gdi32", "kernel32", "user32", "Shell32", "opengl32", "glfw", "glad", "OpenAL32", "freetype", "assimp" }
+        links { "kernel32", "user32", "ws2_32", "winmm" }
 
 project "glad"
     location(GLAD_DIR)
@@ -129,6 +139,44 @@ project "glfw"
 
     filter "action:vs*"
         defines "_CRT_SECURE_NO_WARNINGS"
+
+project "enet"
+    location(ENET_DIR)
+    kind "StaticLib"
+    language "C"
+
+    includedirs { 
+        path.join(ENET_DIR, "include") 
+    }
+    
+    defines {
+        "_WINSOCK_DEPRECATED_NO_WARNINGS"
+    }
+
+    files {
+        path.join(ENET_DIR, "inlcude/enet/callbacks.h"),
+        path.join(ENET_DIR, "inlcude/enet/enet.h"),
+        path.join(ENET_DIR, "inlcude/enet/list.h"),
+        path.join(ENET_DIR, "inlcude/enet/protocol.h"),
+        path.join(ENET_DIR, "inlcude/enet/time.h"),
+        path.join(ENET_DIR, "inlcude/enet/types.h"),
+        path.join(ENET_DIR, "inlcude/enet/unix.h"),
+        path.join(ENET_DIR, "inlcude/enet/win32.h"),
+        path.join(ENET_DIR, "inlcude/enet/utility.h"),
+        path.join(ENET_DIR, "callbacks.c"),
+        path.join(ENET_DIR, "compress.c"),
+        path.join(ENET_DIR, "host.c"),
+        path.join(ENET_DIR, "list.c"),
+        path.join(ENET_DIR, "packet.c"),
+        path.join(ENET_DIR, "peer.c"),
+        path.join(ENET_DIR, "protocol.c"),
+        path.join(ENET_DIR, "unix.c"),
+        path.join(ENET_DIR, "win32.c")
+    }
+    
+    filter "configurations:Debug"
+        defines({ "DEBUG" })
+
 
 project "freetype"
     location(FREE_TYPE_DIR)

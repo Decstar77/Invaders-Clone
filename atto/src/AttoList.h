@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../AttoDefines.h"
+#include "AttoDefines.h"
 
 namespace atto
 {

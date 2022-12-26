@@ -1,10 +1,153 @@
 #pragma once
 
-#include "../AttoDefines.h"
-#include "AttoTransientList.h"
+#include "AttoDefines.h"
+#include "AttoList.h"
 
 namespace atto
 {
+    template<typename T, i32 capcity>
+    class FixedList
+    {
+    public:
+        T*             GetData();
+        const T*       GetData() const;
+        i32            GetCapcity() const;
+        i32            GetCount() const;
+        void           SetCount(i32 count);
+        bool           IsFull() const;
+        bool           IsEmpty() const;
+        void           Clear();
+
+        T* Add(const T& value);
+        b8             AddIfPossible(const T& t);
+        void           Remove(const i32& index);
+        void           Remove(const T* ptr);
+
+        T* Get(const i32& index);
+        const T* Get(const i32& index) const;
+
+        T& operator[](const i32& index);
+        T operator[](const i32& index) const;
+
+    private:
+        T data[capcity];
+        i32 count;
+    };
+
+    template<typename T, i32 capcity>
+    const T* FixedList<T, capcity>::Get(const i32& index) const {
+        Assert(index >= 0 && index < capcity, "Array, invalid index");
+        return &data[index];
+    }
+
+
+    template<typename T, i32 capcity>
+    T* FixedList<T, capcity>::Get(const i32& index) {
+        Assert(index >= 0 && index < capcity, "Array, invalid index");
+
+        return &data[index];
+    }
+
+    template<typename T, i32 capcity>
+    void FixedList<T, capcity>::Clear() {
+        count = 0;
+    }
+
+    template<typename T, i32 capcity>
+    bool FixedList<T, capcity>::IsEmpty() const {
+        return count == 0;
+    }
+
+    template<typename T, i32 capcity>
+    bool FixedList<T, capcity>::IsFull() const {
+        return capcity == count;
+    }
+
+    template<typename T, i32 capcity>
+    void FixedList<T, capcity>::SetCount(i32 count) {
+        this->count = count;
+    }
+
+    template<typename T, i32 capcity>
+    i32 FixedList<T, capcity>::GetCount() const {
+        return count;
+    }
+
+    template<typename T, i32 capcity>
+    i32 FixedList<T, capcity>::GetCapcity() const {
+        return capcity;
+    }
+
+    template<typename T, i32 capcity>
+    T* FixedList<T, capcity>::GetData() {
+        return data;
+    }
+
+    template<typename T, i32 capcity>
+    const T* FixedList<T, capcity>::GetData() const {
+        return data;
+    }
+
+    template<typename T, i32 capcity>
+    T* FixedList<T, capcity>::Add(const T& value) {
+        i32 index = count; count++;
+        Assert(index >= 0 && index < capcity, "Array, add to many items");
+
+        data[index] = value;
+
+        return &data[index];
+    }
+
+    template<typename T, i32 capcity>
+    b8 FixedList<T, capcity>::AddIfPossible(const T& t) {
+        i32 index = count;
+        if (index < capcity)
+        {
+            data[index] = t;
+            count++;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    template<typename T, i32 capcity>
+    void FixedList<T, capcity>::Remove(const i32& index) {
+        Assert(index >= 0 && index < count, "Array invalid remove index ");
+        for (i32 i = index; i < count - 1; i++)
+        {
+            data[i] = data[i + 1];
+        }
+        count--;
+    }
+
+    template<typename T, i32 capcity>
+    void FixedList<T, capcity>::Remove(const T* ptr) {
+        for (i32 i = 0; i < count; i++)
+        {
+            if (ptr == &data[i])
+            {
+                Remove(i);
+                return;
+            }
+        }
+    }
+
+    template<typename T, i32 capcity>
+    T FixedList<T, capcity>::operator[](const i32& index) const {
+        Assert(index >= 0 && index < capcity, "Array, invalid index");
+
+        return data[index];
+    }
+
+    template<typename T, i32 capcity>
+    T& FixedList<T, capcity>::operator[](const i32& index) {
+        Assert(index >= 0 && index < capcity, "Array, invalid index");
+
+        return data[index];
+    }
+
     class StringHash
     {
     public:
@@ -40,21 +183,21 @@ namespace atto
     {
     public:
         inline static const i32 MAX_NUMBER_SIZE = 22;
-        inline static const i32 CAPCITY         = static_cast<i32>(SizeBytes - sizeof(i32));
+        inline static const i32 CAPCITY = static_cast<i32>(SizeBytes - sizeof(i32));
 
         FixedStringBase();
         FixedStringBase(const char* str);
         FixedStringBase(const FixedStringBase& other);
 
-        void                                SetLength(const i32 &l);
+        void                                SetLength(const i32& l);
         i32                                 GetLength() const;
-        const char*                         GetCStr() const;
-        char*                               GetCStr();
+        const char* GetCStr() const;
+        char* GetCStr();
         void                                CalculateLength();
         void                                Clear();
-        FixedStringBase<SizeBytes>&         Add(const char& c);
-        FixedStringBase<SizeBytes>&         Add(const char* c);
-        FixedStringBase<SizeBytes>&         Add(const FixedStringBase<SizeBytes>& c);
+        FixedStringBase<SizeBytes>& Add(const char& c);
+        FixedStringBase<SizeBytes>& Add(const char* c);
+        FixedStringBase<SizeBytes>& Add(const FixedStringBase<SizeBytes>& c);
         i32                                 FindFirstOf(const char& c) const;
         i32                                 FindLastOf(const char& c) const;
         i32                                 NumOf(const char& c) const;
@@ -70,11 +213,11 @@ namespace atto
         void                                StripFileExtension();
         void                                StripFilePath();
         void                                BackSlashesToSlashes();
-        TransientList<FixedStringBase>      Split(char delim) const;
+        //TransientList<FixedStringBase>      Split(char delim) const;
 
         bool                                operator==(const char* other);
         bool                                operator==(const FixedStringBase<SizeBytes>& other) const;
-        char&                               operator[](const i32& index);
+        char& operator[](const i32& index);
         char                                operator[](const i32& index) const;
         bool                                operator!=(const FixedStringBase<SizeBytes>& other) const;
 
@@ -385,37 +528,37 @@ namespace atto
         }
     }
 
-    template<u64 SizeBytes>
-    TransientList<FixedStringBase<SizeBytes>> FixedStringBase<SizeBytes>::Split(char delim) const {
-        const i32 num = NumOf(delim) + 1;
-        TransientList<FixedStringBase<SizeBytes>> result(
-            num, 
-            Memory::AllocateTransientStruct<FixedStringBase<SizeBytes>>(num)
-        );
+    //template<u64 SizeBytes>
+    //TransientList<FixedStringBase<SizeBytes>> FixedStringBase<SizeBytes>::Split(char delim) const {
+    //    const i32 num = NumOf(delim) + 1;
+    //    TransientList<FixedStringBase<SizeBytes>> result(
+    //        num,
+    //        Memory::AllocateTransientStruct<FixedStringBase<SizeBytes>>(num)
+    //    );
 
-        i32 start = 0;
-        i32 end = 0;
-        const i32 len = GetLength();
-        for (; end < len; end++) {
-            if (data[end] == delim) {
-                if (start != end) {
-                    result[result.count].CopyFrom(*this, start, end - 1);
-                    result.count++;
-                    start = end + 1;
-                }
-                else {
-                    start++;
-                }
-            }
-        }
+    //    i32 start = 0;
+    //    i32 end = 0;
+    //    const i32 len = GetLength();
+    //    for (; end < len; end++) {
+    //        if (data[end] == delim) {
+    //            if (start != end) {
+    //                result[result.count].CopyFrom(*this, start, end - 1);
+    //                result.count++;
+    //                start = end + 1;
+    //            }
+    //            else {
+    //                start++;
+    //            }
+    //        }
+    //    }
 
-        if (end != start) {
-            result[result.count].CopyFrom(*this, start, end - 1);
-            result.count++;
-        }
+    //    if (end != start) {
+    //        result[result.count].CopyFrom(*this, start, end - 1);
+    //        result.count++;
+    //    }
 
-        return result;
-    }
+    //    return result;
+    //}
 
     template<u64 SizeBytes>
     bool FixedStringBase<SizeBytes>::operator==(const char* other) {
@@ -472,4 +615,10 @@ namespace atto
     typedef FixedStringBase<64>           SmallString;
     typedef FixedStringBase<256>          LargeString;
     typedef FixedStringBase<Megabytes(4)> VeryLargeString;
+
+    class StringBuilder {
+    public:
+        static SmallString FormatSmall(const char* format, ...);
+        static LargeString FormatLarge(const char* format, ...);
+    };
 }

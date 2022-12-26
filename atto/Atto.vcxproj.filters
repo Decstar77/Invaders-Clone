@@ -1,54 +1,81 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="containers">
-      <UniqueIdentifier>{FB7E5497-E736-96E4-503E-6F403C1531D5}</UniqueIdentifier>
+    <Filter Include="src">
+      <UniqueIdentifier>{2DAB880B-99B4-887C-2230-9F7C8E38947C}</UniqueIdentifier>
     </Filter>
     <Filter Include="vendor">
       <UniqueIdentifier>{B3738122-9F15-ACF8-88D0-BF4C74113349}</UniqueIdentifier>
     </Filter>
-    <Filter Include="vendor\stb_image">
-      <UniqueIdentifier>{0DA0BA59-F998-D9AB-22CB-BE300E23B9B7}</UniqueIdentifier>
+    <Filter Include="vendor\stb">
+      <UniqueIdentifier>{8BD3C5A8-778B-07F6-E092-E051CC69A2E6}</UniqueIdentifier>
     </Filter>
-    <Filter Include="vendor\stb_vorbis">
-      <UniqueIdentifier>{FF208FAF-6B37-8D45-B4AE-186720045ECD}</UniqueIdentifier>
+    <Filter Include="vendor\stb\stb_vorbis">
+      <UniqueIdentifier>{D7E950E0-4356-0CDB-0C4A-A43878752E43}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\AttoDefines.h" />
-    <ClInclude Include="src\SpaceInvaders.h" />
-    <ClInclude Include="src\containers\AttoFixedHashMap.h">
-      <Filter>containers</Filter>
+    <ClInclude Include="src\AttoAsset.h">
+      <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="src\containers\AttoFixedList.h">
-      <Filter>containers</Filter>
+    <ClInclude Include="src\AttoContainers.h">
+      <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="src\containers\AttoFixedString.h">
-      <Filter>containers</Filter>
+    <ClInclude Include="src\AttoDefines.h">
+      <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="src\containers\AttoList.h">
-      <Filter>containers</Filter>
+    <ClInclude Include="src\AttoInput.h">
+      <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="src\containers\AttoString.h">
-      <Filter>containers</Filter>
+    <ClInclude Include="src\AttoLib.h">
+      <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="src\containers\AttoTransientList.h">
-      <Filter>containers</Filter>
+    <ClInclude Include="src\AttoList.h">
+      <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="src\vendor\stb_image\std_image.h">
-      <Filter>vendor\stb_image</Filter>
+    <ClInclude Include="src\AttoLua.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\AttoRendering.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Pong.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\SpaceInvaders.h">
+      <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\AssetLoading.cpp" />
-    <ClCompile Include="src\Main.cpp" />
-    <ClCompile Include="src\SpaceInvaders.cpp" />
-    <ClCompile Include="src\UseDedicatedGPU.cpp" />
-    <ClCompile Include="src\containers\AttoString.cpp">
-      <Filter>containers</Filter>
+    <ClCompile Include="..\vendor\stb\stb_vorbis\stb_vorbis.c">
+      <Filter>vendor\stb\stb_vorbis</Filter>
     </ClCompile>
-    <ClCompile Include="src\vendor\stb_vorbis\stb_vorbis.c">
-      <Filter>vendor\stb_vorbis</Filter>
+    <ClCompile Include="src\AttoAsset.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AttoContainers.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AttoLib.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AttoLua.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AttoRendering.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\LeMimcrosoft.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Main.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Pong.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\SpaceInvaders.cpp">
+      <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
