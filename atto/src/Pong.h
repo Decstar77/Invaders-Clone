@@ -23,13 +23,14 @@ namespace atto
         glm::vec2              vel = glm::vec2(0, 0);
         glm::vec2              acc = glm::vec2(0, 0);
         f32                    mass = 1.0f;
-        SpriteAsset            sprite;
+        Sprite                 sprite;
     };
 
     class Pong : public GameState {
     public:
         bool                            Initialize(AppState* app) override;
-        void                            UpdateAndRender(AppState* app) override;
+        void                            Update(AppState* app) override;
+        void                            Render(AppState* app) override;
         void                            Shutdown(AppState* app) override;
 
         bool                            LoadLuaScripts();
@@ -41,14 +42,17 @@ namespace atto
         static int                      Lua_CreateEntity(lua_State* L);
         static int                      Lua_PushQuad(lua_State* L);
 
-        const TextureAsset* test;
+        i32                             player1Score = 0;
+        i32                             player2Score = 0;
 
         LuaScript                       luaLogic;
         FixedList<PongEntity, 256>      entities;
 
-        AssetRegistry*                  assetRegistry;
+        LeEngine*                       engine;
+        FontAsset*                      fontAsset;
+        Speaker                         speaker;
 
-        LineRenderer                    lineRenderer;
+        DebugRenderer                   debugRenderer;
         FontRenderer                    fontRenderer;
         SpriteRenderer                  spriteRenderer;
     };

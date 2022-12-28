@@ -15,7 +15,7 @@ struct ALCcontext;
 
 namespace atto
 {
-    class AssetRegistry;
+    class LeEngine;
     class GameState;
 
     enum class LogLevel {
@@ -53,25 +53,26 @@ namespace atto
         Logger*             logger = nullptr;
         GLFWwindow*         window = nullptr;
         FrameInput*         input = nullptr;
-        AssetRegistry*      assetRegistry = nullptr;
+        LeEngine*           engine = nullptr;
         GameState*          gameState = nullptr;
         f32                 deltaTime = 0.0f;
         i32                 windowWidth = 1280;
         i32                 windowHeight = 720;
         f32                 windowAspect = (f32)windowWidth / (f32)windowHeight;
-        SmallString         windowTitle = "Game";
+        SmallString         windowTitle = SmallString::FromLiteral("Game");
         bool                windowCreateCentered = true;
         bool                windowVsync = true;
         bool                windowFullscreen = false;
         bool                shouldClose = false;
         bool                useLooseAssets = false;
-        LargeString         looseAssetPath = "assets/";
+        LargeString         looseAssetPath = LargeString::FromLiteral("assets/");
     };
 
     class GameState {
     public:
         virtual bool Initialize(AppState* app) = 0;
-        virtual void UpdateAndRender(AppState* app) = 0;
+        virtual void Update(AppState* app) = 0;
+        virtual void Render(AppState* app) = 0;
         virtual void Shutdown(AppState* app) = 0;
     };
 

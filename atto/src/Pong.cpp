@@ -12,26 +12,13 @@ namespace atto
         std::uniform_real_distribution<f32> dis(min, max);
         return dis(gen);
     }
-    
-    static int Lua_Test1(lua_State* L) {
-        glm::vec2 size;
-        glm::vec4 color;
-        LuaScript::GetTableValue(L, "w", 1, size.x);
-        LuaScript::GetTableValue(L, "h", 1, size.y);
-        LuaScript::GetTableValue(L, "r", 1, color.r);
-        LuaScript::GetTableValue(L, "g", 1, color.g);
-        LuaScript::GetTableValue(L, "b", 1, color.b);
-        LuaScript::GetTableValue(L, "a", 1, color.a);
-
-        return 0;
-    }
 
     bool Pong::Initialize(AppState* app) {
-        assetRegistry = app->assetRegistry;
+        engine = app->engine;
 
         LoadLuaScripts();
 
-        lineRenderer.Initialize();
+        debugRenderer.Initialize();
         fontRenderer.Initialize();
         spriteRenderer.Initialize();
 
@@ -44,9 +31,7 @@ namespace atto
         luaLogic.Free();
 
         if (luaLogic.Load("assets/scripts/pong.lua")) {
-            luaLogic.SetFunction("atto_push_quad",      &Pong::Lua_PushQuad);
             luaLogic.SetFunction("atto_create_entity",  &Pong::Lua_CreateEntity);
-            luaLogic.SetFunction("atto_test",           &Lua_Test1);
 
             return true;
         }
@@ -60,8 +45,10 @@ namespace atto
         if (LoadLuaScripts()) {
             luaLogic.CallVoidFunction("create_pong_level", this);
 
-            test = assetRegistry->LoadTextureAsset(AssetId::Create("assets/sprites/star_tiny"));
-            
+            if (!engine->AudioIsSpeakerAlive(speaker)) {
+                speaker = engine->AudioPlay(AudioAssetId::Create("assets/music/battle_2"), true, 0.5f);
+            }
+
             return true;
         }
 
@@ -88,10 +75,16 @@ namespace atto
 
     }
 
-    void Pong::UpdateAndRender(AppState* app) {
+    void Pong::Update(AppState* app) {
         if (IsKeyJustDown(app->input, KEY_CODE_R)) {
             ATTOINFO("Reload level");
             LoadLevel();
+            return;
+        }
+
+
+        if (!IsKeyJustDown(app->input, KEY_CODE_T) && !app->input->keys[KEY_CODE_G]) {
+            //return;
         }
 
         luaLogic.SetGlobal("dt",            app->deltaTime);
@@ -116,6 +109,83 @@ namespace atto
 
                 entity->pos.y = glm::clamp(entity->pos.y, 0.0f, app->windowHeight - entity->sprite.drawScale.y);
 
+            } break;
+
+            case PONG_ENTITY_TYPE_AI_PADDEL: {
+                entity->pos.y = entities[2].pos.y - entity->sprite.drawScale.y * 0.5f;
+
+                entity->pos.y = glm::clamp(entity->pos.y, 0.0f, app->windowHeight - entity->sprite.drawScale.y);
+
+            } break;
+
+            case PONG_ENTITY_TYPE_BALL: {
+                BoxBounds playerPaddleBounds = GetPlayerPaddleBounds();
+                BoxBounds aiPaddleBounds = GetAIPaddleBounds();
+                
+                                
+                Ray2D ballRay = {};
+                ballRay.origin = entity->pos + entity->sprite.drawScale * 0.5f;
+                ballRay.direction = glm::normalize( entity->vel );
+                
+                f32 t;
+                if (RayCast::Box(playerPaddleBounds, ballRay, t)) {
+                    if (t > 0 && t < 10) {
+                        entity->vel.x *= -1.0f;
+                        engine->AudioPlay(AudioAssetId::Create("assets/sounds/laserLarge_000"));
+                    }
+                }
+
+                if (RayCast::Box(aiPaddleBounds, ballRay, t)) {
+                    if (t > 0 && t < 10) {
+                        entity->vel.x *= -1.0f;
+                        engine->AudioPlay(AudioAssetId::Create("assets/sounds/laserLarge_000"));
+                    }
+                }
+                
+                if (entity->pos.y < 0 || entity->pos.y > app->windowHeight - entity->sprite.drawScale.y) {
+                    engine->AudioPlay(AudioAssetId::Create("assets/sounds/forceField_003"));
+                    entity->vel.y = -entity->vel.y;
+                }
+                
+                if (entity->pos.x < 0 || entity->pos.x > app->windowWidth) {
+                    if (entity->pos.x < 0) {
+                        player1Score++;
+                    }
+                    else {
+                        player2Score++;
+                    }
+                    
+                    engine->AudioPlay(AudioAssetId::Create("assets/sounds/forceField_000"));
+                    LoadLevel();
+                }
+
+                entity->pos += entity->vel * app->deltaTime;
+
+                BoxBounds ballBounds = {};
+                ballBounds.min = entity->pos;
+                ballBounds.max = entity->pos + entity->sprite.drawScale;
+
+                //debugRenderer.PushBox(playerPaddleBounds);
+                //debugRenderer.PushBox(aiPaddleBounds);
+                //debugRenderer.PushBox(ballBounds);
+                //debugRenderer.PushRay(ballRay);
+
+            } break;
+
+            default:
+                break;
+            }
+        }
+    }
+
+    void Pong::Render(AppState* app) {
+
+        const i32 entityCount = entities.GetCount();
+        for (i32 i = 0; i < entityCount; ++i) {
+            PongEntity* entity = &entities[i];
+            switch (entity->type)
+            {
+            case PONG_ENTITY_TYPE_PLAYER_PADDEL: {
                 SpriteDrawEntry spriteDrawEntry = {};
                 spriteDrawEntry.sprite = entity->sprite;
                 spriteDrawEntry.scale = entity->sprite.drawScale;
@@ -126,10 +196,6 @@ namespace atto
             } break;
 
             case PONG_ENTITY_TYPE_AI_PADDEL: {
-                entity->pos.y = entities[2].pos.y;
-
-                entity->pos.y = glm::clamp(entity->pos.y, 0.0f, app->windowHeight - entity->sprite.drawScale.y);
-
                 SpriteDrawEntry spriteDrawEntry = {};
                 spriteDrawEntry.sprite = entity->sprite;
                 spriteDrawEntry.scale = entity->sprite.drawScale;
@@ -140,39 +206,6 @@ namespace atto
             } break;
 
             case PONG_ENTITY_TYPE_BALL: {
-                static glm::vec2 ballDirection = glm::vec2(RandomFloat(0, 1), RandomFloat(0, 1));
-                static glm::vec2 ballVelocity = glm::dot(glm::vec2(-200.0f, -200.0f), glm::normalize(ballDirection)) * glm::normalize(ballDirection);
-         
-                BoxBounds ballBounds = {};
-                ballBounds.min = entity->pos;
-                ballBounds.max = entity->pos + entity->sprite.drawScale;
-
-                BoxBounds playerPaddleBounds = GetPlayerPaddleBounds();
-                BoxBounds aiPaddleBounds = GetAIPaddleBounds();
-                
-                lineRenderer.PushBox(ballBounds);
-                lineRenderer.PushBox(playerPaddleBounds);
-                lineRenderer.PushBox(aiPaddleBounds);
-                
-
-                if (ballBounds.min.x < playerPaddleBounds.max.x && ballBounds.max.x > playerPaddleBounds.min.x) {
-                    if (ballBounds.min.y < playerPaddleBounds.max.y && ballBounds.max.y > playerPaddleBounds.min.y) {
-                        ballVelocity.x = -ballVelocity.x;
-                    }
-                }
-
-                if (ballBounds.min.x < aiPaddleBounds.max.x && ballBounds.max.x > aiPaddleBounds.min.x) {
-                    if (ballBounds.min.y < aiPaddleBounds.max.y && ballBounds.max.y > aiPaddleBounds.min.y) {
-                        ballVelocity.x = -ballVelocity.x;
-                    }
-                }
-
-                entity->pos += ballVelocity * app->deltaTime;
-
-                if (entity->pos.y < 0 || entity->pos.y > app->windowHeight - entity->sprite.drawScale.y) {
-                    ballVelocity.y = -ballVelocity.y;
-                }
-
                 SpriteDrawEntry spriteDrawEntry = {};
                 spriteDrawEntry.sprite = entity->sprite;
                 spriteDrawEntry.scale = entity->sprite.drawScale;
@@ -195,10 +228,12 @@ namespace atto
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-        
-        fontRenderer.Draw(projection);
+        engine->DrawTextSetFont(FontAssetId::Create("assets/fonts/arial"));
+        engine->DrawText(StringFormat::Small("%d", player1Score), glm::vec2(app->windowWidth - 50, app->windowHeight - 50));
+        engine->DrawText(StringFormat::Small("%d", player2Score), glm::vec2(20, app->windowHeight - 50));
+
         spriteRenderer.Draw(projection);
-        lineRenderer.Draw(projection);
+        engine->DEBUGSubmit();
     }
 
 #define LUA_CHECK_PARAM_COUNT(x) if (lua_gettop(L) != x) { ATTOERROR("Invalid number of parameters for function %s", __func__); return -1; }
@@ -215,15 +250,15 @@ namespace atto
         def["x"].Get(entity.pos.x);
         def["y"].Get(entity.pos.y);
         
-        SmallString spriteAssetName = "";
-        entity.sprite = SpriteAsset::Create();
+        SmallString spriteAssetName = {};
+        entity.sprite = Sprite::CreateDefault();
         def["sprite"]["texture"].Get(spriteAssetName);
         def["sprite"]["w"].Get(entity.sprite.drawScale.x);
         def["sprite"]["h"].Get(entity.sprite.drawScale.y);
 
         if (spriteAssetName.GetLength()) {
-            AssetId id = AssetId::Create(spriteAssetName.GetCStr());
-            entity.sprite.texture = pong->assetRegistry->LoadTextureAsset(id);
+            TextureAssetId id = TextureAssetId::Create(spriteAssetName.GetCStr());
+            entity.sprite.texture = pong->engine->LoadTextureAsset(id);
         }
 
         glm::vec2 dir = glm::vec2(0, 0);
@@ -235,26 +270,6 @@ namespace atto
         }
 
         pong->entities.Add(entity);
-
-        return 0;
-    }
-
-    int Pong::Lua_PushQuad(lua_State* L) {
-        if (lua_gettop(L) != 9) {
-            return -1;
-        }
-
-        Pong* pong = (Pong*)lua_touserdata(L, 1);
-        f32 x = (f32)lua_tonumber(L, 2);
-        f32 y = (f32)lua_tonumber(L, 3);
-        f32 w = (f32)lua_tonumber(L, 4);
-        f32 h = (f32)lua_tonumber(L, 5);
-        f32 r = (f32)lua_tonumber(L, 6);
-        f32 g = (f32)lua_tonumber(L, 7);
-        f32 b = (f32)lua_tonumber(L, 8);
-        f32 a = (f32)lua_tonumber(L, 9);
-
-        pong->spriteRenderer.PushQuad(glm::vec2(x, y), glm::vec2(w, h), glm::vec4(r, g, b, a));
 
         return 0;
     }

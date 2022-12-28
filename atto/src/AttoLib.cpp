@@ -12,6 +12,8 @@
 #include <string>
 #include <stdarg.h> 
 
+#include "Pong.h"
+
 namespace atto
 {
     static void StringFormatV(char* dest, size_t size, const char* format, va_list va_listp)
@@ -51,7 +53,7 @@ namespace atto
         StringFormat(instance->outputBuffer, sizeof(outputBuffer), "%s%s\n", header, instance->logBuffer);
 
         if (strlen(instance->outputBuffer) < LargeString::CAPCITY) {
-            instance->logs.Add(instance->outputBuffer);
+            instance->logs.Add( LargeString::FromLiteral( instance->outputBuffer) );
         }
 
         Application::ConsoleWrite(instance->outputBuffer, (u8)level);
@@ -123,17 +125,6 @@ namespace atto
     bool Application::CreateApp(AppState &app) {
         app.logger  = new Logger();
         app.input   = new FrameInput();
-
-        if (app.useLooseAssets) {
-            ATTOTRACE("Using raw assets");
-            app.assetRegistry = new LooseAssetLoader();
-            app.assetRegistry->Initialize(&app);
-        }
-        else {
-            ATTOTRACE("Using packed assets");
-            Assert(0, "ddd");
-            //app.assetLoader = new PackedAssetLoader();
-        }
 
         if (!glfwInit()) {
             ATTOFATAL("Could not init GLFW, your windows is f*cked");
@@ -215,11 +206,24 @@ namespace atto
             return false;
         }
 
+        if (app.useLooseAssets) {
+            ATTOTRACE("Using raw assets");
+            app.engine = new LooseAssetLoader();
+            app.engine->Initialize(&app);
+        }
+        else {
+            ATTOTRACE("Using packed assets");
+            Assert(0, "ddd");
+        }
+
+        app.gameState = new Pong();
+        app.gameState->Initialize(&app);
+
         return true;
     }
 
     void Application::DestroyApp(AppState &app) {
-        app.assetRegistry->Shutdown();
+        app.engine->Shutdown();
         alcMakeContextCurrent(nullptr);
         alcDestroyContext(app.alContext);
         alcCloseDevice(app.alDevice);

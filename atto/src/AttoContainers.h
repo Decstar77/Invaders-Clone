@@ -20,7 +20,7 @@ namespace atto
 
         T* Add(const T& value);
         b8             AddIfPossible(const T& t);
-        void           Remove(const i32& index);
+        void           RemoveIndex(const i32& index);
         void           Remove(const T* ptr);
 
         T* Get(const i32& index);
@@ -113,10 +113,9 @@ namespace atto
     }
 
     template<typename T, i32 capcity>
-    void FixedList<T, capcity>::Remove(const i32& index) {
+    void FixedList<T, capcity>::RemoveIndex(const i32& index) {
         Assert(index >= 0 && index < count, "Array invalid remove index ");
-        for (i32 i = index; i < count - 1; i++)
-        {
+        for (i32 i = index; i < count - 1; i++) {
             data[i] = data[i + 1];
         }
         count--;
@@ -124,11 +123,9 @@ namespace atto
 
     template<typename T, i32 capcity>
     void FixedList<T, capcity>::Remove(const T* ptr) {
-        for (i32 i = 0; i < count; i++)
-        {
-            if (ptr == &data[i])
-            {
-                Remove(i);
+        for (i32 i = 0; i < count; i++) {
+            if (ptr == &data[i]) {
+                RemoveIndex(i);
                 return;
             }
         }
@@ -147,6 +144,93 @@ namespace atto
 
         return data[index];
     }
+
+    //template<typename _type_, i32 capcity>
+    //class FixedFreeList {
+    //public:
+    //    _type_*         Add();
+    //    void            Remove(_type_* ptr);
+    //    void            Clear();
+
+    //    i32             GetCount() const;
+    //    i32             GetCapcity() const;
+
+    //    _type_&         operator[](i32 index);
+    //    const _type_&   operator[](i32 index) const;
+
+    //private:
+    //    void            InitializedIfNeedBe();
+    //    i32             FindFreeIndex();
+
+    //    FixedList<_type_,   capcity> list;
+    //    FixedList<i32,      capcity> freeList;
+    //};
+
+    //template<typename _type_, i32 capcity>
+    //_type_* FixedFreeList<_type_, capcity>::Add() {
+    //    InitializedIfNeedBe();
+    //    const i32 freeIndex = FindFreeIndex();
+    //    Assert(freeIndex != -1, "FixedFreeList, no free index");
+    //    list.SetCount(list.GetCount() + 1);
+    //    return list[freeIndex];
+    //}
+    //
+    //template<typename _type_, i32 capcity>
+    //void FixedFreeList<_type_, capcity>::Remove(_type_* ptr) {
+    //    list.SetCount(list.GetCount() - 1);
+    //    const i32 
+    //}
+    //
+    //template<typename _type_, i32 capcity>
+    //void FixedFreeList<_type_, capcity>::Clear() {
+    //    
+    //}
+
+    //template<typename _type_, i32 capcity>
+    //i32 atto::FixedFreeList<_type_, capcity>::GetCount() const
+    //{
+
+    //}
+
+    //template<typename _type_, i32 capcity>
+    //i32 atto::FixedFreeList<_type_, capcity>::GetCapcity() const
+    //{
+
+    //}
+
+    //template<typename _type_, i32 capcity>
+    //_type_& atto::FixedFreeList<_type_, capcity>::operator[](i32 index)
+    //{
+
+    //}
+
+    //template<typename _type_, i32 capcity>
+    //const _type_& atto::FixedFreeList<_type_, capcity>::operator[](i32 index) const
+    //{
+
+    //}
+
+    //template<typename _type_, i32 capcity>
+    //void FixedFreeList<_type_, capcity>::InitializedIfNeedBe() {
+    //    if (freeList.GetCount() == 0 && list.GetCount() == 0) {
+    //        const i32 cap = freeList.GetCapcity();
+    //        for (i32 i = cap - 1; i >= 0; i--) {
+    //            freeList.Add(i);
+    //        }
+    //    }
+    //}
+    //
+    //template<typename _type_, i32 capcity>
+    //i32 FixedFreeList<_type_, capcity>::FindFreeIndex() {
+    //    const i32 freeListCount = freeList.GetCount();
+    //    if (freeListCount > 0) {
+    //        const i32 freeIndex = freeList[freeListCount - 1];
+    //        freeList.RemoveIndex(freeListCount - 1);
+    //        return freeIndex;
+    //    }
+    //    
+    //    return -1;
+    //}
 
     class StringHash
     {
@@ -185,19 +269,17 @@ namespace atto
         inline static const i32 MAX_NUMBER_SIZE = 22;
         inline static const i32 CAPCITY = static_cast<i32>(SizeBytes - sizeof(i32));
 
-        FixedStringBase();
-        FixedStringBase(const char* str);
-        FixedStringBase(const FixedStringBase& other);
+        static FixedStringBase<SizeBytes> constexpr FromLiteral(const char* str);
 
         void                                SetLength(const i32& l);
         i32                                 GetLength() const;
-        const char* GetCStr() const;
-        char* GetCStr();
+        const char*                         GetCStr() const;
+        char*                               GetCStr();
         void                                CalculateLength();
         void                                Clear();
-        FixedStringBase<SizeBytes>& Add(const char& c);
-        FixedStringBase<SizeBytes>& Add(const char* c);
-        FixedStringBase<SizeBytes>& Add(const FixedStringBase<SizeBytes>& c);
+        FixedStringBase<SizeBytes>&         Add(const char& c);
+        FixedStringBase<SizeBytes>&         Add(const char* c);
+        FixedStringBase<SizeBytes>&         Add(const FixedStringBase<SizeBytes>& c);
         i32                                 FindFirstOf(const char& c) const;
         i32                                 FindLastOf(const char& c) const;
         i32                                 NumOf(const char& c) const;
@@ -206,7 +288,8 @@ namespace atto
         void                                Replace(const char& c, const char& replaceWith);
         void                                RemoveCharacter(const i32& removeIndex);
         void                                RemoveWhiteSpace();
-        b32	                                Contains(const FixedStringBase& str);
+        b32                                 Contains(const char* str) const;
+        b32	                                Contains(const FixedStringBase& str) const;
         b32	                                StartsWith(const FixedStringBase& str) const;
         void                                CopyFrom(const FixedStringBase& src, const i32& start, const i32& end);
         void                                ToUpperCase();
@@ -214,6 +297,8 @@ namespace atto
         void                                StripFilePath();
         void                                BackSlashesToSlashes();
         //TransientList<FixedStringBase>      Split(char delim) const;
+
+        FixedStringBase<SizeBytes> &        operator=(const char* other);
 
         bool                                operator==(const char* other);
         bool                                operator==(const FixedStringBase<SizeBytes>& other) const;
@@ -227,37 +312,16 @@ namespace atto
     };
 
     template<u64 SizeBytes>
-    FixedStringBase<SizeBytes>::FixedStringBase() {
-        Clear();
-        SetLength(0);
+    FixedStringBase<SizeBytes> constexpr FixedStringBase<SizeBytes>::FromLiteral(const char* str) {
+        FixedStringBase<SizeBytes> result = {};
+        result.Add(str);
+        return result;
     }
 
-    template<u64 SizeBytes>
-    FixedStringBase<SizeBytes>::FixedStringBase(const char* str) {
-        const i32 stringLength = static_cast<i32>(StringHash::ConstStrLen(str));
+    //template<u64 SizeBytes>
+    //FixedStringBase<SizeBytes>::FixedStringBase(const char* str) {
 
-        Assert(stringLength < CAPCITY, "FixedStringBase is too large");
-
-        length = stringLength;
-
-        for (i32 i = 0; i < stringLength; i++) {
-            data[i] = str[i];
-        }
-
-        for (i32 i = stringLength; i < CAPCITY; i++) {
-            data[i] = '\0';
-        }
-    }
-
-    template<u64 SizeBytes>
-    FixedStringBase<SizeBytes>::FixedStringBase(const FixedStringBase& other) {
-        Clear();
-
-        length = other.length;
-        for (i32 i = 0; i < length; i++) {
-            data[i] = other.data[i];
-        }
-    }
+    //}
 
     template<u64 SizeBytes>
     void FixedStringBase<SizeBytes>::SetLength(const i32& l) {
@@ -428,7 +492,31 @@ namespace atto
     }
 
     template<u64 SizeBytes>
-    b32 FixedStringBase<SizeBytes>::Contains(const FixedStringBase& str) {
+    b32 atto::FixedStringBase<SizeBytes>::Contains(const char* str) const {
+        const i32 l = length;
+        const i32 strLen = static_cast<i32>(StringHash::ConstStrLen(str));
+
+        for (i32 i = 0; i < l; i++) {
+            if (data[i] == str[0]) {
+                b32 match = true;
+                for (i32 j = 0; j < strLen; j++) {
+                    if (data[i + j] != str[j]) {
+                        match = false;
+                        break;
+                    }
+                }
+
+                if (match) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    template<u64 SizeBytes>
+    b32 FixedStringBase<SizeBytes>::Contains(const FixedStringBase& str) const {
         const i32 otherLength = str.length;
         const i32 ourLength = length;
         b32 result = false;
@@ -561,6 +649,12 @@ namespace atto
     //}
 
     template<u64 SizeBytes>
+    FixedStringBase<SizeBytes>& FixedStringBase<SizeBytes>::operator=(const char* other) {
+        *this = FromLiteral(other);
+        return *this;
+    }
+
+    template<u64 SizeBytes>
     bool FixedStringBase<SizeBytes>::operator==(const char* other) {
         i32 index = 0;
         const i32 l = length;
@@ -616,9 +710,9 @@ namespace atto
     typedef FixedStringBase<256>          LargeString;
     typedef FixedStringBase<Megabytes(4)> VeryLargeString;
 
-    class StringBuilder {
+    class StringFormat {
     public:
-        static SmallString FormatSmall(const char* format, ...);
-        static LargeString FormatLarge(const char* format, ...);
+        static SmallString Small(const char* format, ...);
+        static LargeString Large(const char* format, ...);
     };
 }

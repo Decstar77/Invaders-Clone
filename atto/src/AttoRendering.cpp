@@ -304,77 +304,6 @@ namespace atto
         glBindTextureUnit(textureUnit, texture);
     }
 
-    void AudioClip::CreateFromAsset(const AudioAsset& asset) {
-        u32 alFormat = GetALFormat(asset.channels, asset.bitDepth);
-
-        alGenBuffers(1, &buffer);
-        alBufferData(buffer, alFormat, asset.data.GetData(), (ALsizei)asset.sizeBytes, (ALsizei)asset.sampleRate);
-
-        alGenSources(1, &source);
-        alSourcei(source, AL_BUFFER, buffer);
-    }
-
-    void AudioClip::Play() {
-        alSourcePlay(source);
-    }
-
-    bool AudioClip::IsPlaying() {
-        ALenum state = {};
-        alGetSourcei(source, AL_SOURCE_STATE, &state);
-        return state == AL_PLAYING;
-    }
-
-    void AudioClip::CheckALErrors() {
-        ALCenum error = alGetError();
-        if (error != AL_NO_ERROR) {
-            switch (error)
-            {
-            case AL_INVALID_NAME:
-                ATTOERROR("AL_INVALID_NAME: a bad name (ID) was passed to an OpenAL ");
-                break;
-            case AL_INVALID_ENUM:
-                ATTOERROR("AL_INVALID_ENUM: an invalid enum value was passed to an OpenAL ");
-                break;
-            case AL_INVALID_VALUE:
-                ATTOERROR("AL_INVALID_VALUE: an invalid value was passed to an OpenAL ");
-                break;
-            case AL_INVALID_OPERATION:
-                ATTOERROR("AL_INVALID_OPERATION: the requested operation is n");
-                break;
-            case AL_OUT_OF_MEMORY:
-                ATTOERROR("AL_OUT_OF_MEMORY: the requested operation resulted in OpenAL running out ");
-                break;
-            default:
-                ATTOERROR("UNKNOWN AL ERROR: ");
-            }
-            ATTOERROR("");
-        }
-    }
-
-    u32 AudioClip::GetALFormat(u32 numChannels, u32 bitDepth) {
-        b8 sterio = numChannels > 1;
-        if (sterio) {
-            if (bitDepth == 8) {
-                return AL_FORMAT_STEREO8;
-            }
-            else if (bitDepth == 16) {
-                return AL_FORMAT_STEREO16;
-            }
-        }
-        else {
-            if (bitDepth == 8) {
-                return AL_FORMAT_MONO8;
-            }
-            else if (bitDepth == 16) {
-                return AL_FORMAT_MONO16;
-            }
-        }
-
-        ATTOERROR("Unsupported audio format");
-        
-        return 0;
-    }
-
     void TileSheetGenerator::AddTile(u32 width, u32 height, void* data) {
         Tile& tile = tiles.Alloc();
         tile.width = width;
@@ -474,19 +403,37 @@ namespace atto
         min = center - size * 0.5f;
     }
 
+    bool RayCast::Box(const BoxBounds& b, const Ray2D& r, f32& t) {
+        f32 tx1 = (b.min.x - r.origin.x) * (1.0f / r.direction.x);
+        f32 tx2 = (b.max.x - r.origin.x) * (1.0f / r.direction.x);
+
+        f32 tmin = glm::min(tx1, tx2);
+        f32 tmax = glm::max(tx1, tx2);
+
+        f32 ty1 = (b.min.y - r.origin.y) * (1.0f / r.direction.y);
+        f32 ty2 = (b.max.y - r.origin.y) * (1.0f / r.direction.y);
+
+        tmin = glm::max(tmin, glm::min(ty1, ty2));
+        tmax = glm::min(tmax, glm::max(ty1, ty2));
+
+        t = tmin;
+
+        return tmax >= tmin;
+    }
+
     bool BoxBounds::Intersects(const BoxBounds& other) {
         return (max.x >= other.min.x && min.x <= other.max.x) &&
             (max.y >= other.min.y && min.y <= other.max.y);
     }
 
-    void LineRenderer::Initialize(u32 maxLines) {
+    void DebugRenderer::Initialize(u32 maxLines) {
         totalSizeBytes = maxLines * sizeof(LineVertex);
         CreateProgram();
         CreateBuffer();
         ATTOTRACE("LineRenderer Initialized");
     }
 
-    void LineRenderer::CreateProgram() {
+    void DebugRenderer::CreateProgram() {
         const char* vertexShaderSource = R"(
             #version 330 core
 
@@ -517,7 +464,7 @@ namespace atto
         program.Create(vertexShaderSource, fragmentShaderSource);
     }
 
-    void LineRenderer::CreateBuffer() {
+    void DebugRenderer::CreateBuffer() {
         glGenVertexArrays(1, &vao);
         glGenBuffers(1, &vbo);
 
@@ -537,7 +484,7 @@ namespace atto
         glBindVertexArray(0);
     }
 
-    void LineRenderer::PushLine(const glm::vec2& start, const glm::vec2& end, const glm::vec4& color) {
+    void DebugRenderer::PushLine(const glm::vec2& start, const glm::vec2& end, const glm::vec4& color) {
         const i32 newCount = lines.GetNum() + 2;
         if (newCount * sizeof(LineVertex) > totalSizeBytes) {
             ATTOINFO("To many debug lines!!");
@@ -556,7 +503,11 @@ namespace atto
         lines.Add(v2);
     }
 
-    void LineRenderer::PushBox(const BoxBounds& box, const glm::vec4& color) {
+    void DebugRenderer::PushRay(const Ray2D& ray, const glm::vec4& color) {
+        PushLine(ray.origin, ray.origin + ray.direction, color);
+    }
+
+    void DebugRenderer::PushBox(const BoxBounds& box, const glm::vec4& color) {
         glm::vec2 v1 = box.min;
         glm::vec2 v2 = box.max;
         glm::vec2 v3 = glm::vec2(box.min.x, box.max.y);
@@ -567,7 +518,7 @@ namespace atto
         PushLine(v2, v4, color);
     }
 
-    void LineRenderer::Draw(const glm::mat4& projection) {
+    void DebugRenderer::Draw(const glm::mat4& projection) {
         const u32 vertexCount = lines.GetNum();
         const u32 vertexSize = vertexCount * sizeof(LineVertex);
 
@@ -682,7 +633,6 @@ namespace atto
             f32 w = (f32)ch.size.x;
             f32 h = (f32)ch.size.y;
 
-
             bounds.min.y = glm::min(bounds.min.y, ypos);
             bounds.max.y = glm::max(bounds.max.y, ypos + h);
 
@@ -741,7 +691,7 @@ namespace atto
             }
 
             if (entry.underlineThinkness > 0.0f && entry.underlinePercent > 0.0f) {
-                textProgram.SetInt("mode", FONT_RENDERING_MODE_GUI);
+                textProgram.SetInt("mode", (i32)FontRenderingMode::FONT_RENDERING_MODE_GUI);
                 textProgram.SetVec4f("color", 1.0, 1.0, 1.0, 1.0);
 
                 f32 xpos = x;
@@ -770,7 +720,7 @@ namespace atto
                 glDrawArrays(GL_TRIANGLES, 0, 6);
             }
 
-            textProgram.SetInt("mode", FONT_RENDERING_MODE_TEXT);
+            textProgram.SetInt("mode", (i32)FontRenderingMode::FONT_RENDERING_MODE_TEXT);
 
             glBindTextureUnit(0, entry.font->textureHandle);
 
@@ -910,7 +860,7 @@ namespace atto
         const i32 entryCount = entries.GetCount();
         for (i32 entryIndex = 0; entryIndex < entryCount; entryIndex++) {
             SpriteDrawEntry& entry = entries[entryIndex];
-            SpriteAsset& sprite = entry.sprite;
+            Sprite& sprite = entry.sprite;
 
             f32 xpos = entry.position.x;
             f32 ypos = entry.position.y;
@@ -971,6 +921,9 @@ namespace atto
 
         entries.Clear();
     }
+
+
+
 }
 
 

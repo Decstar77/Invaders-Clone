@@ -9,6 +9,30 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
+/*
+* TODO:
+* -- FONT: Add support for kerning
+* -- FONT: Add support for multiple lines
+* -- FONT: Add support for text alignment (INCOMPLETE)
+* -- FONT: Add support for text wrapping (MAYBE)
+* 
+* -- SPRITE: Add support for sprite animation
+* 
+* -- ASSETS: Locked down asset paths
+* -- ASSETS: Add threading to asset loading
+* -- ASSETS: Pack asset files
+* 
+*/
+
+/*
+* PROBLEM:
+* Now that we use a fixed times step we can loose inputs across frame. I'm not sure that this is the biggest issue but 
+* still something to be aware of. Not sure what the best solution would be if any. Maybe poll input events only on a game update ?
+* App <-- t1 = 1, t2 = 0 (P)
+* App <-- t1 = 0, t2 = 1 (R)
+* Game <-- Misses the pushed key.
+*/
+
 using namespace atto;
 
 int main(const int argc, const char** argv) {
@@ -31,34 +55,39 @@ int main(const int argc, const char** argv) {
     app.windowAspect = (f32)app.windowWidth / (f32)app.windowHeight;
 
     Application::CreateApp(app);
-
-    app.gameState = new Pong();
-
-    f64 currentTime = glfwGetTime();
-    f64 lastTime = currentTime;
-    f32 dt = 0;
-
-    app.gameState->Initialize(&app);
+    
+    const f64 targetFrameTimeMS = 16.0;
+    f64 lastTimeMS = glfwGetTime() * 1000.0;
+    f64 lagMS = 0.0f;
 
     while (Application::AppIsRunning(app)) {
         Application::UpdateApp(app);
-        app.deltaTime = dt;
-        app.gameState->UpdateAndRender(&app);
+        f64 currentTimeMS = glfwGetTime() * 1000.0;
+        f64 elapsedMS = currentTimeMS - lastTimeMS;
+        lastTimeMS = currentTimeMS;
+        
+        lagMS += elapsedMS;
+
         if (app.shouldClose || IsKeyJustDown(app.input, GLFW_KEY_ESCAPE)) {
             app.shouldClose = true;
         }
+        
+        while (lagMS >= targetFrameTimeMS) {
+            app.deltaTime = (f32)(targetFrameTimeMS / 1000.0);
+            app.gameState->Update(&app);
+            lagMS -= targetFrameTimeMS;
+
+            app.input->lastKeys = app.input->keys;
+            app.input->lastMouseButtons = app.input->mouseButtons;
+        }
+
+        app.gameState->Render(&app);
 
         Application::PresentApp(app);
 
-        app.input->lastKeys = app.input->keys;
-        app.input->lastMouseButtons = app.input->mouseButtons;
-
-        lastTime = currentTime;
-        currentTime = glfwGetTime();
-        dt = (f32)(currentTime - lastTime);
-        //std::cout << "Dt = " << dt * 1000 << std::endl;
+        //ATTOINFO("Delta time = %f", elapsedMS);
     }
-    
+
     app.gameState->Shutdown(&app);
 
     Application::DestroyApp(app);

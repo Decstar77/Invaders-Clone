@@ -9,8 +9,6 @@ extern "C"
 #include <lualib.h>
 }
 
-#include <luabridge/LuaBridge.h>
-
 #include <utility>
 
 namespace atto
@@ -53,16 +51,12 @@ namespace atto
         
         void SetFunction(const char* name, lua_CFunction func);
         
-        bool PrepareFunction(const char* name);
         void PushValue(i32 value);
         void PushValue(f32 value);
         void PushValue(void* value);
         bool CallFunction(i32 numArgs, i32 numResults);
 
         static void* GetUserData(lua_State* L, i32 index);
-        static bool GetTableValue(lua_State* L, const char* key, i32 index, i32& value);
-        static bool GetTableValue(lua_State* L, const char* key, i32 index, f32& value);
-        static bool GetTableValue(lua_State* L, const char* key, i32 index, SmallString &value);
 
         inline void PushValues() { }
         template<typename _type_, typename... _args_>
@@ -79,9 +73,6 @@ namespace atto
 
         template<typename _type_>
         void SetGlobalNumber(const char* name, _type_ value);
-        
-        template<typename _type_>
-        static bool GetTableValue_(lua_State* L, const char* key, i32 index, _type_& value);
 
         lua_State* L = nullptr;
     };
@@ -136,30 +127,6 @@ namespace atto
         lua_setglobal(L, name);
     }
 
-
-    template<typename _type_>
-    bool LuaScript::GetTableValue_(lua_State* L, const char* key, i32 index, _type_& value) {
-        Assert(L != nullptr, "LuaScript::SetGlobal -> Lua state is null");
-
-        if (!lua_istable(L, index)) {
-            ATTOERROR("Top of stack is not table");
-            return false;
-        }
-        
-        lua_pushstring(L, key);
-        lua_gettable(L, index);
-
-        if (!lua_isnumber(L, -1)) {
-            lua_pop(L, 1);
-            return false;
-        }
-
-        value = (_type_)lua_tonumber(L, -1);
-        lua_pop(L, 1);
-
-        return true;
-    }
-
     template<typename _type_, typename... _args_>
     void LuaScript::PushValues(const _type_& arg0, const _args_&&... args) {
         PushValue(arg0);
@@ -168,7 +135,9 @@ namespace atto
 
     template<typename... _args_>
     bool LuaScript::CallVoidFunction(const char* name, const _args_&&... args) {
-        if (!PrepareFunction(name)) {
+        Assert(L != nullptr, "LuaScript::GetGlobal -> Lua state is null");
+        if (lua_getglobal(L, name) != LUA_TFUNCTION) {
+            ATTOERROR("LuaScript::GetGlobal -> Could not get global %s", name);
             return false;
         }
 

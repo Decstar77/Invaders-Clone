@@ -4,6 +4,31 @@
 
 namespace atto
 {
+    struct Ray2D {
+        glm::vec2 origin;
+        glm::vec2 direction;
+    };
+
+    struct Circle {
+        glm::vec2   pos;
+        f32         rad;
+    };
+
+    struct BoxBounds {
+        glm::vec2 min;
+        glm::vec2 max;
+
+        void Translate(const glm::vec2& translation);
+        void CreateFromCenterSize(const glm::vec2& center, const glm::vec2& size);
+        bool BoxBounds::Intersects(const BoxBounds& other);
+    };
+
+    struct RayInfo {
+        f32 t;
+        glm::vec2 normal;
+        glm::vec2 point;
+    };
+
     class Bitmap {
     public:
 #pragma pack(push, 1)
@@ -40,7 +65,7 @@ namespace atto
             u32 height;
             u32 xPos;
             u32 yPos;
-            FixedList<byte, 1024> data;
+            FixedList<byte, 2048> data;
             glm::vec2 uv0;
             glm::vec2 uv1;
             glm::vec2 boundingUV0;
@@ -55,12 +80,28 @@ namespace atto
         u32             pixelStrideBytes = 4;
     };
 
+    enum AssetType {
+        ASSET_TYPE_INVALID = 0,
+        ASSET_TYPE_TEXTURE,
+        ASSET_TYPE_AUDIO,
+        ASSET_TYPE_FONT,
+        ASSET_TYPE_SPRITE,
+        ASSET_TYPE_TILESHEET,
+        ASSET_TYPE_COUNT
+    };
+
     class AssetId {
     public:
         inline static AssetId Create(const char* str) {
             AssetId id;
             id.id = StringHash::Hash(str);
             return id; 
+        }
+
+        inline static AssetId Create(u32 idNumber) {
+            AssetId id;
+            id.id = idNumber;
+            return id;
         }
 
         inline b8 IsValid() const { return id != 0; }
@@ -73,6 +114,30 @@ namespace atto
         u32 id;
     };
 
+    template<u32 _type_>
+    class TypedAssetId {
+    public:
+        inline static TypedAssetId<_type_> Create(const char* str) {
+            TypedAssetId<_type_> id;
+            id.id = StringHash::Hash(str);
+            return id;
+        }
+
+        inline b8 IsValid() const { return id != 0; }
+        inline u32 GetValue() const { return id; }
+        inline AssetId ToRawId() const { return AssetId::Create(id); }
+
+        inline b8 operator ==(const AssetId& other) const { return id == other.id; }
+        inline b8 operator !=(const AssetId& other) const { return id != other.id; }
+
+    private:
+        u32 id;
+    };
+
+    typedef TypedAssetId<ASSET_TYPE_TEXTURE> TextureAssetId;
+    typedef TypedAssetId<ASSET_TYPE_AUDIO>   AudioAssetId;
+    typedef TypedAssetId<ASSET_TYPE_FONT>    FontAssetId;
+    
     struct TextureAsset {
         u32         textureHandle;
         i32         width;
@@ -90,16 +155,24 @@ namespace atto
         }
     };
 
-    class AudioAsset {
-    public:
-        i32         channels = 0;
-        i32         sampleRate = 0;
-        i32         sizeBytes = 0;
-        i32         bitDepth = 0;
-        List<byte>  data;
+    struct AudioAsset {
+        u32         bufferHandle;
+        i32         channels;
+        i32         sampleRate;
+        i32         sizeBytes;
+        i32         bitDepth;
+
+        static AudioAsset CreateDefault() {
+            return {};
+        }
     };
 
-    struct SpriteAsset {
+    struct Speaker {
+        u32         sourceHandle;
+        i32         index;
+    };
+
+    struct Sprite {
         // Texture stuffies
         glm::vec2               uv0;
         glm::vec2               uv1;
@@ -116,8 +189,8 @@ namespace atto
         i32                     frameCount;
         i32                     frameIndex;
 
-        inline static SpriteAsset Create() {
-            SpriteAsset spriteAsset = {};
+        inline static Sprite CreateDefault() {
+            Sprite spriteAsset = {};
             spriteAsset.uv1 = glm::vec2(1, 1);
             spriteAsset.drawScale = glm::vec2(1, 1);
             spriteAsset.frameCount = 1;
@@ -138,10 +211,39 @@ namespace atto
         i32                     width;
         i32                     height;
         
-        i32                     fontSize;
+        i32                     fontSize; // TODO: Think of a good way to set these things...
         FixedList<Glyph, 128>   glyphs;
+
+        static FontAsset CreateDefault() {
+            FontAsset fontAsset = {};
+            fontAsset.fontSize = 38;
+            return fontAsset;
+        }
     };
-    
+
+    struct VertexBuffer {
+        u32 vao;
+        u32 vbo;
+        i32 size;
+        i32 stride;
+    };
+
+    struct VertexBufferIndexed {
+        u32 vao;
+        u32 vbo;
+        u32 ibo;
+    };
+
+    struct ShaderUniform {
+        SmallString name;
+        i32 location;
+    };
+
+    struct ShaderProgram {
+        u32                                 programHandle;
+        FixedList<ShaderUniform, 16>        uniforms;
+    };
+
     class PackedAssetFile {
     public:
         void        PutData(byte* data, i32 size);
@@ -217,16 +319,6 @@ namespace atto
             GetData((byte*)data.GetData(), data.GetCount() * sizeof(_type_));
         }
     };
-
-    enum AssetType {
-        ASSET_TYPE_INVALID = 0,
-        ASSET_TYPE_TEXTURE,
-        ASSET_TYPE_AUDIO,
-        ASSET_TYPE_FONT,
-        ASSET_TYPE_SPRITE,
-        ASSET_TYPE_TILESHEET,
-        ASSET_TYPE_COUNT
-    };
     
     struct EngineAsset {
         AssetType               type = ASSET_TYPE_INVALID;
@@ -236,33 +328,175 @@ namespace atto
         union {
             TextureAsset   texture;
             FontAsset      font;
-            SpriteAsset    sprite;
+            AudioAsset     audio;
+            Sprite    sprite;
         };
     };
+    
+    struct ShapeVertex {
+        glm::vec2 position;
+    };
 
-    class AssetRegistry {
+    struct ShapeRenderingState {
+        glm::vec4           color;
+        ShaderProgram       program;
+        VertexBuffer        vertexBuffer;
+    };
+
+    enum FontHAlignment {
+        FONT_HALIGN_LEFT,
+        FONT_HALIGN_CENTER,
+        FONT_HALIGN_RIGHT
+    };
+
+    enum FontVAlignment {
+        FONT_VALIGN_BOTTOM,
+        FONT_VALIGN_MIDDLE,
+        FONT_VALIGN_TOP,
+    };
+
+    struct FontVertex {
+        glm::vec2 position;
+        glm::vec2 uv;
+    };
+
+    struct DrawEntryFont {
+        LargeString         text;
+        FontAsset*          font;
+        FontHAlignment      hAlignment;
+        FontVAlignment      vAlignment;
+        glm::vec4           color;
+        f32                 underlineThinkness;
+        f32                 underlinePercent;
+        f32                 textWidth;
+        glm::vec2           pos;
+        BoxBounds           bounds;
+    };
+    
+    struct TextRenderingState {
+        FontAsset *         font;
+        FontHAlignment      hAlignment;
+        FontVAlignment      vAlignment;
+        f32                 underlineThinkness;
+        f32                 underlinePercent;
+        glm::vec4           color;
+        ShaderProgram       program;
+        VertexBuffer        vertexBuffer;
+    };
+
+    struct DebugLineVertex {
+        glm::vec2 position;
+        glm::vec4 color;
+    };
+
+    struct DebugRenderingState {
+        ShaderProgram                       program;
+        VertexBuffer                        vertexBufer;
+        FixedList<DebugLineVertex, 2048>    lines;
+        glm::vec4                           color;
+    };
+
+    enum VertexLayoutType {
+        VERTEX_LAYOUT_TYPE_SHAPE,
+        VERTEX_LAYOUT_TYPE_FONT,
+        VERTEX_LAYOUT_TYPE_DEBUG_LINE,
+    };
+
+    struct GlobalRenderingState {
+        ShaderProgram *                     program;
+    };
+
+    class LeEngine {
     public:
-        virtual bool                        Initialize(AppState *app) = 0;
+        virtual bool                        Initialize(AppState* app);
         virtual void                        Shutdown() = 0;
         
-        const void *                        LoadEngineAsset(const AssetId& id, const AssetType &type);
-        const TextureAsset*                 LoadTextureAsset(const AssetId &id);
-        const AudioAsset*                   LoadAudioAsset(const AssetId& id);
-        const FontAsset*                    LoadFontAsset(const AssetId& id);
+        const void *                        LoadEngineAsset(AssetId id, AssetType type);
+        
+        TextureAsset*                       LoadTextureAsset(TextureAssetId id);
+        void                                FreeTextureAsset(TextureAssetId id);
 
-        void                                FreeTextureAsset(const AssetId& id);
+        FontAsset*                          LoadFontAsset(FontAssetId id);
+        void                                FreeAudioAsset(AudioAssetId id);
+
+        AudioAsset*                         LoadAudioAsset(AudioAssetId id);
+
+        Speaker                             AudioPlay(AudioAssetId audioAssetId, bool looping = false, f32 volume = 1.0f);
+        void                                AudioPause(Speaker speaker);
+        void                                AudioStop(Speaker speaker);
+        bool                                AudioIsSpeakerPlaying(Speaker speaker);
+        bool                                AudioIsSpeakerAlive(Speaker speaker);
+
+        Sprite                              SpriteCreate(TextureAssetId spriteAssetId);
+
+        void                                ShaderProgramBind(ShaderProgram* program);
+        i32                                 ShaderProgramGetUniformLocation(const char* name);
+        void                                ShaderProgramSetInt(const char* name, i32 value);
+        void                                ShaderProgramSetSampler(const char* name, i32 value);
+        void                                ShaderProgramSetTexture(i32 location, u32 textureHandle);
+        void                                ShaderProgramSetFloat(const char* name, f32 value);
+        void                                ShaderProgramSetVec2(const char* name, glm::vec2 value);
+        void                                ShaderProgramSetVec3(const char* name, glm::vec3 value);
+        void                                ShaderProgramSetVec4(const char* name, glm::vec4 value);
+        void                                ShaderProgramSetMat3(const char* name, glm::mat3 value);
+        void                                ShaderProgramSetMat4(const char* name, glm::mat4 value);
+
+        void                                VertexBufferUpdate(VertexBuffer vertexBuffer, i32 offset, i32 size, const void* data);
+
+        void                                DrawShapeSetColor(glm::vec4 color);
+        void                                DrawShapeRect(glm::vec2 bl, glm::vec2 tr);
+        void                                DrawShapeCircle(glm::vec2 center, f32 radius);
+        void                                DrawShapeRoundRect(glm::vec2 bl, glm::vec2 tr, f32 radius = 10.0f);
+
+        void                                DrawTextSetFont(FontAssetId id);
+        void                                DrawTextSetColor(glm::vec4 color);
+        void                                DrawTextSetHalign(FontHAlignment hAlignment);
+        void                                DrawTextSetValign(FontVAlignment hAlignment);
+        f32                                 DrawTextWidth(const char* text);
+        BoxBounds                           DrawTextBounds(const char* text);
+        f32                                 DrawTextWidth(FontAsset* font, const char* text);
+        BoxBounds                           DrawTextBounds(FontAsset *font, const char* text);
+        DrawEntryFont                       DrawTextCreate(const char* text, glm::vec2 pos);
+        void                                DrawText(const char* text, glm::vec2 pos);
+        void                                DrawText(SmallString text, glm::vec2 pos);
+
+        void                                DEBUGPushLine(glm::vec2 a, glm::vec2 b);
+        void                                DEBUGPushRay(Ray2D ray);
+        void                                DEBUGPushCircle(glm::vec2 pos, f32 radius);
+        void                                DEBUGPushCircle(Circle circle);
+        void                                DEBUGPushBox(BoxBounds bounds);
+        void                                DEBUGSubmit();
 
     protected:
         virtual bool                        LoadTextureAsset(const char* name, TextureAsset& textureAsset) = 0;
         virtual bool                        LoadAudioAsset(const char* name, AudioAsset& audioAsset) = 0;
         virtual bool                        LoadFontAsset(const char* name, FontAsset& fontAsset) = 0;
 
+        void                                InitializeShapeRendering();
+        void                                InitializeTextRendering();
+        void                                InitializeDebugRendering();
+
+        VertexBuffer                        SubmitVertexBuffer(i32 sizeBytes, const void* data, VertexLayoutType layoutType, bool dyanmic);
+        ShaderProgram                       SubmitShaderProgram(const char* vertexSource, const char* fragmentSource);
         u32                                 SubmitTextureR8B8G8A8(i32 width, i32 height, byte* data, i32 wrapMode, bool generateMipMaps);
+        u32                                 SubmitAudioClip(i32 sizeBytes, byte* data, i32 channels, i32 bitDepth, i32 sampleRate);
+
+        void                                ALCheckErrors();
+        u32                                 ALGetFormat(u32 numChannels, u32 bitDepth);
+        bool                                GLCheckShaderCompilationErrors(u32 shader);
+        bool                                GLCheckShaderLinkErrors(u32 program);
+
+        glm::mat4                           projection;
+        GlobalRenderingState                globalRenderingState;
+        ShapeRenderingState                 shapeRenderingState;
+        TextRenderingState                  textState;
+        DebugRenderingState                 debugState;
 
         FixedList<EngineAsset, 2048>        engineAssets;
+        FixedList<Speaker,       64>        speakers;
     };
 
-    class LooseAssetLoader : public AssetRegistry {
+    class LooseAssetLoader : public LeEngine {
     public:
         virtual bool                Initialize(AppState* app) override;
         virtual void                Shutdown() override;

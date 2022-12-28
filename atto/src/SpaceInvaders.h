@@ -60,11 +60,11 @@ namespace atto
     class CosmicCombat {
         bool                    Initialize();
 
-        AssetRegistry*            assetLoader = nullptr;
+        LeEngine*            assetLoader = nullptr;
         LooseAssetLoader        looseAssetLoader;
         PackedAssetLoader       packedAssetLoader;
 
-        LineRenderer            lineRenderer;
+        DebugRenderer            lineRenderer;
         FontRenderer            fontRenderer;
         SpriteRenderer          spriteRenderer;
     };
@@ -93,9 +93,9 @@ namespace atto
 
         LooseAssetLoader        looseAssetLoader;
         PackedAssetLoader       packedAssetLoader;
-        AssetRegistry*            assetLoader = nullptr;
+        LeEngine*            assetLoader = nullptr;
 
-        LineRenderer            lineRenderer;
+        DebugRenderer            lineRenderer;
         FontRenderer            fontRenderer;
         SpriteRenderer          spriteRenderer;
 

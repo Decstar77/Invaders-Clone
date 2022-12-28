@@ -9,7 +9,7 @@ namespace atto
         vsnprintf(dest, size, format, va_listp);
     }
 
-    SmallString StringBuilder::FormatSmall(const char* format, ...) {
+    SmallString StringFormat::Small(const char* format, ...) {
         SmallString result;
 
         va_list arg_ptr;
@@ -22,7 +22,7 @@ namespace atto
         return result;
     }
 
-    LargeString StringBuilder::FormatLarge(const char* format, ...) {
+    LargeString StringFormat::Large(const char* format, ...) {
         LargeString result;
 
         va_list arg_ptr;

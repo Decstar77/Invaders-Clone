@@ -8,7 +8,6 @@ local FREE_TYPE_DIR = "vendor/freetype"
 local ENET_DIR = "vendor/enet"
 local STB_DIR = "vendor/stb"
 local LUA_DIR = "vendor/lua"
-local LUA_BRIDGE_DIR = "vendor/luabridge"
 
 solution "Atto"
     location("")
@@ -69,7 +68,6 @@ project "Atto"
         STB_DIR,
         GLM_DIR,
         AUDIO_FILE_DIR,
-        LUA_BRIDGE_DIR,
         "atto/src/"
     }
     

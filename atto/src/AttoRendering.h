@@ -6,10 +6,7 @@
 
 namespace atto
 {
-    struct ShaderUniformValue {
-        SmallString name;
-        i32 location = -1;
-    };
+
 
     class SoftwareRenderSurface {
     public:
@@ -22,30 +19,6 @@ namespace atto
         List<byte> pixels;
         u32 width;
         u32 height;
-    };
-
-    class Program {
-    public:
-        void Load();
-        void Free();
-
-        bool Create(const char* vertexSource, const char* fragmentSource);
-
-        bool CheckCompilationErrors(u32 shader);
-        bool CheckLinkErrors(u32 program);
-
-        void Bind();
-
-        void SetInt(const char* name, i32 value);
-        void SetVec4f(const char* name, f32 x, f32 y, f32 z, f32 w);
-        void SetVec4f(const char* name, const glm::vec4& value);
-        void SetSampler(const char* name, const u32 textureUnit);
-        void SetMat4f(const char* name, const glm::mat4& mat);
-
-        i32 GetUniformLocation(const char* name);
-
-        u32                                 program;
-        FixedList<ShaderUniformValue, 16>   uniforms;
     };
 
     class Mesh {
@@ -77,32 +50,42 @@ namespace atto
         i32 height = 0;
         u32 texture = 0;
     };
-
-    class AudioClip {
-    public:
-        void CreateFromAsset(const AudioAsset& asset);
-
-        void Play();
-        bool IsPlaying();
-
-        void CheckALErrors();
-
-        u32 GetALFormat(u32 numChannels, u32 bitDepth);
-        u32 buffer;
-        u32 source;
+    
+    struct ShaderUniformValue {
+        SmallString name;
+        i32 location = -1;
     };
 
-    class BoxBounds {
+    class Program {
     public:
-        glm::vec2 min;
-        glm::vec2 max;
+        void Load();
+        void Free();
 
-        void Translate(const glm::vec2& translation);
-        void CreateFromCenterSize(const glm::vec2& center, const glm::vec2& size);
-        bool Intersects(const BoxBounds& other);
+        bool Create(const char* vertexSource, const char* fragmentSource);
+
+        bool CheckCompilationErrors(u32 shader);
+        bool CheckLinkErrors(u32 program);
+
+        void Bind();
+
+        void SetInt(const char* name, i32 value);
+        void SetVec4f(const char* name, f32 x, f32 y, f32 z, f32 w);
+        void SetVec4f(const char* name, const glm::vec4& value);
+        void SetSampler(const char* name, const u32 textureUnit);
+        void SetMat4f(const char* name, const glm::mat4& mat);
+
+        i32 GetUniformLocation(const char* name);
+
+        u32                                 program;
+        FixedList<ShaderUniformValue, 16>   uniforms;
     };
 
-    class LineRenderer {
+    class RayCast {
+    public:
+        static bool Box(const BoxBounds& bounds, const Ray2D& ray, f32 &t);
+    };
+
+    class DebugRenderer {
     public:
         struct LineVertex {
             glm::vec2 position;
@@ -114,6 +97,7 @@ namespace atto
         void CreateBuffer();
 
         void PushLine(const glm::vec2& start, const glm::vec2& end, const glm::vec4& color);
+        void PushRay(const Ray2D& ray, const glm::vec4& color = glm::vec4(0, 0.8f, 0, 1));
         void PushBox(const BoxBounds& box, const glm::vec4& color = glm::vec4(0, 0.8f, 0, 1));
 
         void Draw(const glm::mat4& projection);
@@ -142,12 +126,7 @@ namespace atto
 
     class FontRenderer {
     public:
-        struct FontVertex {
-            glm::vec2 position;
-            glm::vec2 uv;
-        };
-
-        enum FontRenderingMode {
+        enum class FontRenderingMode {
             FONT_RENDERING_MODE_TEXT = 0,
             FONT_RENDERING_MODE_GUI = 1
         };
@@ -177,7 +156,7 @@ namespace atto
 
     struct SpriteDrawEntry {
         SpriteDrawKind          drawKind = SPRITE_DRAW_KIND_SPRITE;
-        SpriteAsset             sprite;
+        Sprite             sprite;
         f32                     depth = 0;
         f32                     rotation = 0;
         glm::vec2               position = glm::vec2(0, 0);

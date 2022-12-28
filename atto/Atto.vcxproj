@@ -60,7 +60,7 @@
       <TreatWarningAsError>true</TreatWarningAsError>
       <DisableSpecificWarnings>4057;4100;4152;4200;4201;4204;4206;4214;4221;4702;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <PreprocessorDefinitions>NDEBUG;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\vendor\glfw\include;..\vendor\assimp\include;..\vendor\glad\include;..\vendor\openal\include;..\vendor\freetype\include;..\vendor\enet\include;..\vendor\lua\include;..\vendor\stb;..\vendor\glm;..\vendor\audio;..\vendor\luabridge;src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\vendor\glfw\include;..\vendor\assimp\include;..\vendor\glad\include;..\vendor\openal\include;..\vendor\freetype\include;..\vendor\enet\include;..\vendor\lua\include;..\vendor\stb;..\vendor\glm;..\vendor\audio;src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
@@ -87,7 +87,7 @@
       <TreatWarningAsError>true</TreatWarningAsError>
       <DisableSpecificWarnings>4057;4100;4152;4200;4201;4204;4206;4214;4221;4702;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <PreprocessorDefinitions>_DEBUG;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\vendor\glfw\include;..\vendor\assimp\include;..\vendor\glad\include;..\vendor\openal\include;..\vendor\freetype\include;..\vendor\enet\include;..\vendor\lua\include;..\vendor\stb;..\vendor\glm;..\vendor\audio;..\vendor\luabridge;src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\vendor\glfw\include;..\vendor\assimp\include;..\vendor\glad\include;..\vendor\openal\include;..\vendor\freetype\include;..\vendor\enet\include;..\vendor\lua\include;..\vendor\stb;..\vendor\glm;..\vendor\audio;src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
       <MinimalRebuild>false</MinimalRebuild>

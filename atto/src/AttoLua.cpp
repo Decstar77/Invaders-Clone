@@ -109,16 +109,6 @@ namespace atto
         lua_register(L, name, func);
     }
 
-    bool LuaScript::PrepareFunction(const char* name) {
-        Assert(L != nullptr, "LuaScript::GetGlobal -> Lua state is null");
-        if (lua_getglobal(L, name) != LUA_TFUNCTION) {
-            ATTOERROR("LuaScript::GetGlobal -> Could not get global %s", name);
-            return false;
-        }
-        
-        return true;
-    }
-
     void LuaScript::PushValue(i32 value) {
         Assert(L != nullptr, "LuaScript::GetGlobal -> Lua state is null");
         lua_pushnumber(L, (double)value);
@@ -146,36 +136,6 @@ namespace atto
 
     void* LuaScript::GetUserData(lua_State* L, i32 index) {
         return lua_touserdata(L, index);
-    }
-
-    bool LuaScript::GetTableValue(lua_State* L, const char* key, i32 index, i32& value) {
-        return GetTableValue_(L, key, index, value);
-    }
-
-    bool LuaScript::GetTableValue(lua_State* L, const char* key, i32 index, f32& value) {
-        return GetTableValue_(L, key, index, value);
-    }
-
-    bool LuaScript::GetTableValue(lua_State* L, const char* key, i32 index, SmallString& value) {
-        Assert(L != nullptr, "LuaScript::SetGlobal -> Lua state is null");
-
-        if (!lua_istable(L, index)) {
-            ATTOERROR("Top of stack is not table");
-            return false;
-        }
-
-        lua_pushstring(L, key);
-        lua_gettable(L, index);
-
-        if (!lua_isstring(L, -1)) {
-            lua_pop(L, 1);
-            return false;
-        }
-
-        value = lua_tostring(L, -1);
-        lua_pop(L, 1);
-
-        return true;
     }
 
     LuaTable::LuaTable(lua_State* L, i32 index, bool isSubTable) : L(L), index(index), isSubTable(isSubTable) {
