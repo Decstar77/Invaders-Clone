@@ -145,6 +145,11 @@ namespace atto
         lua_setglobal(L, name);
     }
 
+    void LuaScript::SetGlobal(const char* name, bool value) {
+        lua_pushboolean(L, value);
+        lua_setglobal(L, name);
+    }
+
     void LuaScript::RegisterFunction(const char* name, lua_CFunction func) {
         lua_register(L, name, func);
     }
@@ -202,7 +207,7 @@ namespace atto
         lua_gettable(L, index);
         
         if (lua_isnil(L, -1)) {
-            ATTOWARN("LuaTable::operator[] -> Value at key { %s } is nill", key);
+            //ATTOWARN("LuaTable::operator[] -> Value at key { %s } is nill", key);
             lua_pop(L, 1);
             return LuaTable(L, 0);
         }

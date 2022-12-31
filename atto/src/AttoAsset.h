@@ -436,6 +436,8 @@ namespace atto
     class LeEngine {
     public:
         bool                                Initialize(AppState* app);
+        void                                Update(AppState* app);
+        void                                Render(AppState* app);
         void                                Shutdown();
         
         void                                MouseWheelCallback(f32 x, f32 y);
@@ -513,6 +515,13 @@ namespace atto
 
         void                                EditorToggleConsole();
 
+        glm::mat4                           cameraProjection;
+        glm::mat4                           cameraView;
+        glm::mat4                           screenProjection;
+        
+        i32                                 mainSurfaceWidth;
+        i32                                 mainSurfaceHeight;
+
     protected:
         virtual bool                        LoadTextureAsset(const char* name, TextureAsset& textureAsset) = 0;
         virtual bool                        LoadAudioAsset(const char* name, AudioAsset& audioAsset) = 0;
@@ -538,10 +547,7 @@ namespace atto
 
         LuaScript                           luaEngine;
 
-        glm::mat4                           projection;
-        i32                                 mainSurfaceWidth;
-        i32                                 mainSurfaceHeight;
-        
+
         LargeString                         basePathSprites;
         LargeString                         basePathSounds;
 

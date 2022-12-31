@@ -62,6 +62,7 @@ namespace atto
 
         void SetGlobal(const char* name, i32 value);
         void SetGlobal(const char* name, f32 value);
+        void SetGlobal(const char* name, bool value);
         void SetGlobal(const char* name, void* value);
         
         void RegisterFunction(const char* name, lua_CFunction func);

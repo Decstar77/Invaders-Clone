@@ -74,14 +74,14 @@ int main(const int argc, const char** argv) {
         
         while (lagMS >= targetFrameTimeMS) {
             app.deltaTime = (f32)(targetFrameTimeMS / 1000.0);
-            app.gameState->Update(&app);
+            app.engine->Update(&app);
             lagMS -= targetFrameTimeMS;
 
             app.input->lastKeys = app.input->keys;
             app.input->lastMouseButtons = app.input->mouseButtons;
         }
 
-        app.gameState->Render(&app);
+        app.engine->Render(&app);
 
         Application::PresentApp(app);
 

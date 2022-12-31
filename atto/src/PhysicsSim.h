@@ -23,7 +23,7 @@ namespace atto
     //    AudioAssetId::Create("assets/sounds/sci-fi_weapon_plasma_pistol_05"),
     //    AudioAssetId::Create("assets/sounds/sci-fi_weapon_plasma_pistol_06"),
     //};
-
+    static constexpr i32 LaserSmallSoundCount = 23;
     inline static AudioAssetId LaserSmallSounds[] = {
         AudioAssetId::Create("assets/sounds/blue_laser/blue_laser_ (1)"),
         AudioAssetId::Create("assets/sounds/blue_laser/blue_laser_ (2)"),
@@ -47,14 +47,16 @@ namespace atto
         AudioAssetId::Create("assets/sounds/blue_laser/blue_laser_ (20)"),
         AudioAssetId::Create("assets/sounds/blue_laser/blue_laser_ (21)"),
         AudioAssetId::Create("assets/sounds/blue_laser/blue_laser_ (22)"),
-        AudioAssetId::Create("assets/sounds/blue_laser/blue_laser_ (23)"),
+        AudioAssetId::Create("assets/sounds/blue_laser/blue_laser_ (23)")
     };
 
 
     enum EntityType {
         ENTITY_TYPE_INVALID =0,
         ENTITY_TYPE_PLAYER = 1,
-        ENTITY_TYPE_BUTTET = 2,
+        ENTITY_TYPE_BLUE_LASER = 2,
+        ENTITY_TYPE_RED_LASER = 3,
+        ENTITY_TYPE_MINE = 4,
     };
 
     struct Entity {
@@ -63,6 +65,9 @@ namespace atto
         glm::vec2 vel;
         i32 frameIndex;
         f32 frameTime;
+        f32 fireRate;
+        f32 fireTime;
+        f32 laserSpeed;
     };
 
     class PhysicsSim : public GameState {
@@ -72,9 +77,18 @@ namespace atto
         void                            Render(AppState* app) override;
         void                            Shutdown(AppState* app) override;
 
-        Entity body;
+        f32         difficultyScores = 0.0f;
+        bool        wave1Spawned = false;
+        bool        wave2Spawned = false;
 
-        List<Entity> bullets;
+        
+
+        Entity body;
+        
+        List<Entity> lasers;
+        FixedList<Entity, 1000> entities;
+
+        Entity SpawnMine(f32 x, f32 y);
 
         LeEngine* engine;
     };

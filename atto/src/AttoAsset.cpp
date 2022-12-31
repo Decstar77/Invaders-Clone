@@ -85,6 +85,21 @@ namespace atto {
         return true;
     }
 
+    void LeEngine::Update(AppState* app) {
+        //luaEngine.SetGlobal("dt", app->deltaTime);
+        //luaEngine.SetGlobal("key_a", app->input->keys[KEY_CODE_A]);
+        //luaEngine.SetGlobal("key_d", app->input->keys[KEY_CODE_D]);
+        //luaEngine.CallVoidFunction("update");
+        app->gameState->Update(app);
+    }
+
+    void LeEngine::Render(AppState* app) {
+        DrawClearSurface();
+        DrawEnableAlphaBlending();
+        //luaEngine.CallVoidFunction("render");
+        app->gameState->Render(app);
+    }
+
     void LeEngine::Shutdown() {
 
     }
@@ -120,7 +135,7 @@ namespace atto {
     f32 LeEngine::Random(f32 min, f32 max) {
         static std::random_device rd;
         static std::mt19937 gen(rd());
-        static std::uniform_real_distribution<f32> dis(min, max);
+        std::uniform_real_distribution<f32> dis(min, max);
         return dis(gen);
     }
 
@@ -325,7 +340,6 @@ namespace atto {
 
     void LeEngine::InitializeLuaBindings() {
         luaEngine.CreateNew();
-
 
         luaEngine.SetGlobal("engine", this);
         
@@ -627,8 +641,10 @@ namespace atto {
         glViewport(0, 0, w, h);
 #else
         // Maintain aspect ratio with black bars
-        mainSurfaceWidth = 1280;
-        mainSurfaceHeight = 720;
+        mainSurfaceWidth = (i32)(1280.0 * 1.6f);
+        mainSurfaceHeight = (i32)(720.0 * 1.6f);
+        //mainSurfaceWidth = 480;
+        //mainSurfaceHeight = 360;
 
         f32 ratioX = (f32)w / (f32)mainSurfaceWidth;
         f32 ratioY = (f32)h / (f32)mainSurfaceHeight;
@@ -649,7 +665,7 @@ namespace atto {
         f32 top = (f32)mainSurfaceHeight / 2.0f;
         f32 bottom = -top;
         
-        projection = glm::ortho(left, right, bottom, top, -1.0f, 1.0f);
+        cameraProjection = glm::ortho(left, right, bottom, top, -1.0f, 1.0f);
         ATTOTRACE("Main surface resized to %d x %d", mainSurfaceWidth, mainSurfaceHeight);
     }
 
@@ -688,7 +704,7 @@ namespace atto {
         f32 centerY = (bl.y + tr.y) / 2.0f;
 
         ShaderProgramBind(&shapeRenderingState.program);
-        ShaderProgramSetMat4("p", projection);
+        ShaderProgramSetMat4("p", cameraProjection);
         ShaderProgramSetInt("mode", 0);
         ShaderProgramSetVec4("color", shapeRenderingState.color);
 
@@ -720,7 +736,7 @@ namespace atto {
         };
 
         ShaderProgramBind(&shapeRenderingState.program);
-        ShaderProgramSetMat4("p", projection);
+        ShaderProgramSetMat4("p", cameraProjection);
         ShaderProgramSetInt("mode", 1);
         ShaderProgramSetVec4("color", shapeRenderingState.color);
         ShaderProgramSetVec4("shapePosAndSize", glm::vec4(center.x, center.y, radius, radius));
@@ -752,7 +768,7 @@ namespace atto {
         f32 centerY = (bl.y + tr.y) / 2.0f;
 
         ShaderProgramBind(&shapeRenderingState.program);
-        ShaderProgramSetMat4("p", projection);
+        ShaderProgramSetMat4("p", cameraProjection);
         ShaderProgramSetInt("mode", 2);
         ShaderProgramSetVec4("color", shapeRenderingState.color);
         ShaderProgramSetVec4("shapePosAndSize", glm::vec4(centerX, centerY, w, h));
@@ -789,7 +805,7 @@ namespace atto {
         }
 
         ShaderProgramBind(&spriteRenderingState.program);
-        ShaderProgramSetMat4("p", projection);
+        ShaderProgramSetMat4("p", cameraProjection);
         ShaderProgramSetSampler("texture0", 0);
         ShaderProgramSetTexture(0, sprite->texture->textureHandle);
 
@@ -922,7 +938,7 @@ namespace atto {
         DrawEntryFont entry = DrawTextCreate(inText, pos);
 
         ShaderProgramBind(&textRenderingState.program);
-        ShaderProgramSetMat4("p", projection);
+        ShaderProgramSetMat4("p", cameraProjection);
         ShaderProgramSetSampler("texture0", 0);
 
         glBindVertexArray(textRenderingState.vertexBuffer.vao);
@@ -1073,7 +1089,7 @@ namespace atto {
         glNamedBufferSubData(debugRenderingState.vertexBufer.vbo, 0, vertexSize, debugRenderingState.lines.GetData());
 
         ShaderProgramBind(&debugRenderingState.program);
-        ShaderProgramSetMat4("p", projection);
+        ShaderProgramSetMat4("p", cameraProjection);
         glBindVertexArray(debugRenderingState.vertexBufer.vao);
         glDrawArrays(GL_LINES, 0, vertexCount);
 
