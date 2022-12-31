@@ -17,8 +17,10 @@
 #include <al/al.h>
 
 #include <filesystem>
+#include <random>
 
 namespace atto {
+    
     bool Bitmap::Write(byte* pixels, u32 width, u32 height, const char* name) {
         const u32 pixelSize = width * height * 4;
 
@@ -63,12 +65,70 @@ namespace atto {
         }
     }
 
-    bool LeEngine::Initialize(AppState* app) {
-        projection = glm::ortho(0.0f, (f32)app->windowWidth, 0.0f, (f32)app->windowHeight, -1.0f, 1.0f);
+    bool LeEngine::Initialize(AppState* appState) {
+        app = appState;
+
+        basePathSprites = LargeString::FromLiteral("assets/sprites/");
+        basePathSounds = LargeString::FromLiteral("assets/sounds/");
+        
+        DrawSurfaceResized(app->windowWidth, app->windowHeight);
+
+        RegisterAssets();
+
+        InitializeLuaBindings();
+        
         InitializeShapeRendering();
+        InitializeSpriteRendering();
         InitializeTextRendering();
         InitializeDebugRendering();
+
         return true;
+    }
+
+    void LeEngine::Shutdown() {
+
+    }
+
+    void LeEngine::MouseWheelCallback(f32 x, f32 y) {
+        //static f32 zoom = 0;
+        //zoom -= (i32)y * 150;
+        //
+        //f32 aspect = 1.777777776f;
+        //
+        //
+        //i32 h = 256 + zoom;
+        //i32 w = (i32)((f32)h * aspect);
+        //
+        //f32 right = (f32)w / 2.0f;
+        //f32 left = -right;
+        //
+        //f32 top = (f32)h / 2.0f;
+        //f32 bottom = -top;
+        //
+        ////glm::mat4 view = glm::inverse( glm::translate(glm::mat4(1), glm::vec3(100, 0, 200 + zoom)) );
+        ////projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 10000.0f) * view;
+        //glm::mat4 view = glm::inverse(glm::translate(glm::mat4(1), glm::vec3(100, 0, 0)));
+        //projection = glm::ortho(left, right, bottom, top, -1.0f, 1.0f) * view;
+        //mainSurfaceWidth = w;
+        //mainSurfaceHeight = h;
+    }
+
+    f32 LeEngine::Random() {
+        return Random(0.0f, 1.0f);
+    }
+
+    f32 LeEngine::Random(f32 min, f32 max) {
+        static std::random_device rd;
+        static std::mt19937 gen(rd());
+        static std::uniform_real_distribution<f32> dis(min, max);
+        return dis(gen);
+    }
+
+    i32 LeEngine::RandomInt(i32 min, i32 max) {
+        static std::random_device rd;
+        static std::mt19937 gen(rd());
+        std::uniform_int_distribution<i32> dis(min, max);
+        return dis(gen);
     }
 
     void LeEngine::InitializeShapeRendering() {
@@ -131,11 +191,55 @@ namespace atto {
         shapeRenderingState.color = glm::vec4(1, 1, 1, 1);
         shapeRenderingState.program = SubmitShaderProgram(vertexShaderSource, fragmentShaderSource);
         shapeRenderingState.vertexBuffer = SubmitVertexBuffer(sizeof(ShapeVertex) * 6, nullptr, VERTEX_LAYOUT_TYPE_SHAPE, true);
+
+        ATTOTRACE("Completed shape rendering initialization");
     }
     
+    void LeEngine::InitializeSpriteRendering() {
+        const char* vertexShaderSource = R"(
+            #version 330 core
+
+            layout (location = 0) in vec2 position;
+            layout (location = 1) in vec2 texCoord;
+            layout (location = 2) in vec4 color;
+
+            out vec2 vertexTexCoord;
+            out vec4 vertexColor;
+
+            uniform mat4 p;
+
+            void main() {
+                vertexTexCoord = texCoord;
+                vertexColor = color;
+                gl_Position = p * vec4(position.x, position.y, 0.0, 1.0);
+            }
+        )";
+
+        const char* fragmentShaderSource = R"(
+            #version 330 core
+            out vec4 FragColor;
+
+            in vec2 vertexTexCoord;
+            in vec4 vertexColor;
+
+            uniform sampler2D texture0;
+
+            void main() {
+                vec4 sampled = texture(texture0, vertexTexCoord);
+                FragColor = sampled * vertexColor;
+            }
+        )";
+
+        spriteRenderingState.color = glm::vec4(1, 1, 1, 1);
+        spriteRenderingState.program = SubmitShaderProgram(vertexShaderSource, fragmentShaderSource);
+        spriteRenderingState.vertexBuffer = SubmitVertexBuffer(sizeof(SpriteVertex) * 6, nullptr, VERTEX_LAYOUT_TYPE_SPRITE, true);
+
+        ATTOTRACE("Completed sprite rendering initialization");
+    }
+
     void LeEngine::InitializeTextRendering() {
-        textState.color = glm::vec4(1, 1, 1, 1);
-        textState.underlinePercent = 1.0f;
+        textRenderingState.color = glm::vec4(1, 1, 1, 1);
+        textRenderingState.underlinePercent = 1.0f;
 
         const char* vertexShaderSource = R"(
             #version 330 core
@@ -173,12 +277,14 @@ namespace atto {
             }
         )";
 
-        textState.program = SubmitShaderProgram(vertexShaderSource, fragmentShaderSource);
-        textState.vertexBuffer = SubmitVertexBuffer(sizeof(FontVertex) * 6, nullptr, VERTEX_LAYOUT_TYPE_FONT, true);
+        textRenderingState.program = SubmitShaderProgram(vertexShaderSource, fragmentShaderSource);
+        textRenderingState.vertexBuffer = SubmitVertexBuffer(sizeof(FontVertex) * 6, nullptr, VERTEX_LAYOUT_TYPE_FONT, true);
+
+        ATTOTRACE("Completed text rendering initialization");
     }
 
     void LeEngine::InitializeDebugRendering() {
-        debugState.color = glm::vec4(0, 1, 0, 1);
+        debugRenderingState.color = glm::vec4(0, 1, 0, 1);
 
         const char* vertexShaderSource = R"(
             #version 330 core
@@ -207,12 +313,77 @@ namespace atto {
             }
         )";
 
-        debugState.program = SubmitShaderProgram(vertexShaderSource, fragmentShaderSource);
+        debugRenderingState.program = SubmitShaderProgram(vertexShaderSource, fragmentShaderSource);
         
-        debugState.vertexBufer = SubmitVertexBuffer(
-            debugState.lines.GetCapcity() * sizeof(DebugLineVertex), nullptr, 
+        debugRenderingState.vertexBufer = SubmitVertexBuffer(
+            debugRenderingState.lines.GetCapcity() * sizeof(DebugLineVertex), nullptr, 
             VERTEX_LAYOUT_TYPE_DEBUG_LINE, true
         );
+
+        ATTOTRACE("Completed debug rendering initialization");
+    }
+
+    void LeEngine::InitializeLuaBindings() {
+        luaEngine.CreateNew();
+
+
+        luaEngine.SetGlobal("engine", this);
+        
+        luaEngine.RegisterFunction("atto_id_from_string",               Lua_IdFromString);
+        luaEngine.RegisterFunction("atto_audio_play",                   Lua_AudioPlay);
+        luaEngine.RegisterFunction("atto_draw_shape_set_color",         Lua_DrawShapeSetColor);
+        luaEngine.RegisterFunction("atto_draw_shape_rect",              Lua_DrawShapeRect);
+        luaEngine.RegisterFunction("atto_draw_shape_rect_cd",           Lua_DrawShapeRectCenterDim);
+        luaEngine.RegisterFunction("atto_draw_shape_circle",            Lua_DrawShapeCircle);
+        luaEngine.RegisterFunction("atto_draw_shape_round_rect",        Lua_DrawShapeRoundRect);
+        luaEngine.RegisterFunction("atto_draw_sprite",                  Lua_DrawSprite);
+    
+        // TODO: Load assets via asset functions and remove hard coded string!!
+        // TODO: Asset system for lua
+        luaEngine.LoadFile("assets/scripts/engine.lua");
+        
+        LuaTable spritesTable = {};
+        if (luaEngine.GetGlobal("sprites", spritesTable)) {
+            while (spritesTable.Loop()) {
+                LuaTable st = {};
+                SmallString name = {};
+                if (spritesTable.LoopGet(st, name)) {
+                    SpriteAsset sprite = SpriteAsset::CreateDefault();
+                    sprite.id = AssetId::Create(name.GetCStr());
+
+                    LargeString texture = {};
+                    if (!st["texture"].Get(texture)) {
+                        ATTOERROR("Sprite %s, does not have a texture", name.GetCStr());
+                        continue;
+                    }
+                    sprite.textureId = TextureAssetId::Create(texture.GetCStr());
+
+                    if (!st["frameSize"].Get(sprite.frameSize)) {
+                        ATTOERROR("Sprite %s, does not have a frameSize", name.GetCStr());
+                        continue;
+                    }
+
+                    if (!st["frameCount"].Get(sprite.frameCount)) {
+                        ATTOERROR("Sprite %s, does not have a frameCount", name.GetCStr());
+                        continue;
+                    }
+
+                    st.Put("id", sprite.id.id);
+
+                    st["animated"].Get(sprite.animated);
+                    st["origin"].Get((i32&)sprite.origin);
+
+                    ATTOTRACE("Sprite registered: %s , %ul", name.GetCStr(), sprite.id.id);
+                    registeredSprites.Add(sprite);
+                }
+                else {
+                    ATTOERROR("Could not find table in lua sprites table");
+                }
+            }
+            spritesTable.EndLoop();
+        }
+
+        luaEngine.CallVoidFunction("start");
     }
 
     const void* LeEngine::LoadEngineAsset(AssetId id, AssetType type) {
@@ -429,9 +600,68 @@ namespace atto {
     }
 
     void LeEngine::VertexBufferUpdate(VertexBuffer vertexBuffer, i32 offset, i32 size, const void* data) {
-        glBindBuffer(GL_ARRAY_BUFFER, shapeRenderingState.vertexBuffer.vbo);
+        glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer.vbo);
         glBufferSubData(GL_ARRAY_BUFFER, offset, size, data);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
+    }
+
+    void LeEngine::DrawSurfaceResized(i32 w, i32 h) {
+        glViewport(0, 0, w, h);
+
+        // TODO: I'm not sure on how to handle dynamic resolutions...
+#if 0
+        // IDK
+        f32 aspect = (f32)w / (f32)h;
+        mainSurfaceHeight = (glm::abs(720 - h) < glm::abs(1080 - h)) ? 720 : 1080;
+        mainSurfaceWidth = (i32)((f32)h * aspect);
+        glViewport(0, 0, mainSurfaceWidth, mainSurfaceHeight);
+#elif 0
+        // Widen the camera ???
+        mainSurfaceWidth = w;
+        mainSurfaceHeight = h;
+        glViewport(0, 0, mainSurfaceWidth, mainSurfaceHeight);
+#elif 0
+        // Stretch
+        mainSurfaceWidth = 1280;
+        mainSurfaceHeight = 720;
+        glViewport(0, 0, w, h);
+#else
+        // Maintain aspect ratio with black bars
+        mainSurfaceWidth = 1280;
+        mainSurfaceHeight = 720;
+
+        f32 ratioX = (f32)w / (f32)mainSurfaceWidth;
+        f32 ratioY = (f32)h / (f32)mainSurfaceHeight;
+        f32 ratio = ratioX < ratioY ? ratioX : ratioY;
+        
+        i32 viewWidth = (i32)(mainSurfaceWidth * ratio);
+        i32 viewHeight = (i32)(mainSurfaceHeight * ratio);
+        
+        i32 viewX = (i32)((w - mainSurfaceWidth * ratio) / 2);
+        i32 viewY = (i32)((h - mainSurfaceHeight * ratio) / 2);
+
+        glViewport(viewX, viewY, viewWidth, viewHeight);
+#endif
+        
+        f32 right = (f32)mainSurfaceWidth / 2.0f;
+        f32 left = -right;
+        
+        f32 top = (f32)mainSurfaceHeight / 2.0f;
+        f32 bottom = -top;
+        
+        projection = glm::ortho(left, right, bottom, top, -1.0f, 1.0f);
+        ATTOTRACE("Main surface resized to %d x %d", mainSurfaceWidth, mainSurfaceHeight);
+    }
+
+    void LeEngine::DrawClearSurface(const glm::vec4& color) {
+        //glClearColor(color.r, color.g, color.b, color.a);
+        glClearColor(0.43f, 0, 0, 1);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    }
+
+    void LeEngine::DrawEnableAlphaBlending() {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     }
 
     void LeEngine::DrawShapeSetColor(glm::vec4 color) {
@@ -468,11 +698,17 @@ namespace atto {
         glBindVertexArray(0);
     }
 
+    void LeEngine::DrawShapeRectCenterDim(glm::vec2 center, glm::vec2 dim) {
+        glm::vec2 bottomLeft = center - dim / 2.0f;
+        glm::vec2 topRight = center + dim / 2.0f;
+        DrawShapeRect(bottomLeft, topRight);
+    }
+
     void LeEngine::DrawShapeCircle(glm::vec2 center, f32 radius) {
         f32 x1 = center.x - radius;
         f32 y1 = center.y - radius;
         f32 x2 = center.x + radius;
-        f32 y2 = center.x + radius;
+        f32 y2 = center.y + radius;
 
         f32 vertices[6][2] = {
             { x1, y2 },
@@ -528,6 +764,75 @@ namespace atto {
         glBindVertexArray(0);
     }
 
+    void LeEngine::DrawSprite(const AssetId& id, glm::vec2 pos, i32 frameIndex) {
+        SpriteAsset *sprite = nullptr;
+
+        const i32 spriteCount = registeredSprites.GetCount();
+        for (i32 i = 0; i < spriteCount; i++) {
+            if (registeredSprites[i].id == id) {
+                sprite = &registeredSprites[i];
+                break;
+            }
+        }
+
+        if (sprite == nullptr) {
+            ATTOERROR("SPRITE: Could not find sprite asset");
+            return;
+        }
+
+        if (sprite->texture == nullptr) {
+            sprite->texture = LoadTextureAsset(sprite->textureId);
+            if (sprite->texture == nullptr) {
+                ATTOERROR("SPRITE: Could not load texture asset");
+                return;
+            }
+        }
+
+        ShaderProgramBind(&spriteRenderingState.program);
+        ShaderProgramSetMat4("p", projection);
+        ShaderProgramSetSampler("texture0", 0);
+        ShaderProgramSetTexture(0, sprite->texture->textureHandle);
+
+        f32 xpos = pos.x;
+        f32 ypos = pos.y;
+
+        f32 scaleX = 1;
+        f32 scaleY = 1;
+
+        f32 w = sprite->frameSize.x * scaleX;
+        f32 h = sprite->frameSize.y * scaleY;
+
+        glm::vec2 uv0 = sprite->uv0;
+        glm::vec2 uv1 = sprite->uv1;
+
+        if (sprite->origin == SPRITE_ORIGIN_CENTER) {
+            xpos -= w / 2.0f;
+            ypos -= h / 2.0f;
+        }
+
+        uv0.x = (frameIndex * sprite->frameSize.x) / sprite->texture->width;
+        uv1.x = (frameIndex * sprite->frameSize.x + sprite->frameSize.x) / sprite->texture->width;
+        
+        glm::vec4 color = spriteRenderingState.color;
+
+        f32 vertices[6][2 + 2 + 4] = {
+            { xpos,     ypos + h,    uv0.x, uv0.y,    color.r, color.g, color.b, color.a },
+            { xpos,     ypos,        uv0.x, uv1.y,    color.r, color.g, color.b, color.a },
+            { xpos + w, ypos,        uv1.x, uv1.y,    color.r, color.g, color.b, color.a },
+
+            { xpos,     ypos + h,    uv0.x, uv0.y,    color.r, color.g, color.b, color.a },
+            { xpos + w, ypos,        uv1.x, uv1.y,    color.r, color.g, color.b, color.a },
+            { xpos + w, ypos + h,    uv1.x, uv0.y,    color.r, color.g, color.b, color.a }
+        };
+
+        static_assert(sizeof(vertices) == sizeof(SpriteVertex) * 6, "Sprite vertex size mismatch");
+
+        glBindVertexArray(spriteRenderingState.vertexBuffer.vao);
+        VertexBufferUpdate(spriteRenderingState.vertexBuffer, 0, sizeof(vertices), vertices);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        glBindVertexArray(0);
+    }
+
     void LeEngine::DrawTextSetFont(FontAssetId id) {
         FontAsset* fontAsset = LoadFontAsset(id);
         if (!fontAsset) {
@@ -535,7 +840,15 @@ namespace atto {
             return;
         }
 
-        textState.font = fontAsset;
+        textRenderingState.font = fontAsset;
+    }
+
+    void LeEngine::DrawTextSetHalign(FontHAlignment hAlignment) {
+        textRenderingState.hAlignment = hAlignment;
+    }
+
+    void LeEngine::DrawTextSetValign(FontVAlignment vAlignment) {
+        textRenderingState.vAlignment = vAlignment;
     }
 
     f32 LeEngine::DrawTextWidth(FontAsset* currentFont, const char* text) {
@@ -583,37 +896,36 @@ namespace atto {
         DrawEntryFont entry = {};
         entry.text = text;
         entry.pos = pos;
-        entry.font = textState.font;
-        entry.hAlignment = textState.hAlignment;
-        entry.vAlignment = textState.vAlignment;
-        entry.underlineThinkness = textState.underlineThinkness;
-        entry.underlinePercent = textState.underlinePercent;
-        entry.color = textState.color;
+        entry.font = textRenderingState.font;
+        entry.hAlignment = textRenderingState.hAlignment;
+        entry.vAlignment = textRenderingState.vAlignment;
+        entry.underlineThinkness = textRenderingState.underlineThinkness;
+        entry.underlinePercent = textRenderingState.underlinePercent;
+        entry.color = textRenderingState.color;
 
-        BoxBounds bounds = DrawTextBounds(textState.font, text);
+        BoxBounds bounds = DrawTextBounds(textRenderingState.font, text);
         if (entry.hAlignment == FONT_HALIGN_CENTER) {
             f32 width = bounds.max.x - bounds.min.x;
             bounds.min.x -= width / 2.0f;
             bounds.max.x -= width / 2.0f;
         }
 
-        entry.textWidth = DrawTextWidth(textState.font, text);
+        entry.textWidth = DrawTextWidth(textRenderingState.font, text);
 
         bounds.Translate(entry.pos);
         entry.bounds = bounds;
 
         return entry;
-
     }
 
     void LeEngine::DrawText(const char* inText, glm::vec2 pos) {
         DrawEntryFont entry = DrawTextCreate(inText, pos);
 
-        ShaderProgramBind(&textState.program);
+        ShaderProgramBind(&textRenderingState.program);
         ShaderProgramSetMat4("p", projection);
         ShaderProgramSetSampler("texture0", 0);
 
-        glBindVertexArray(textState.vertexBuffer.vao);
+        glBindVertexArray(textRenderingState.vertexBuffer.vao);
 
         f32 x = entry.pos.x;
         f32 y = entry.pos.y;
@@ -647,7 +959,7 @@ namespace atto {
                 { xpos + w, ypos + h,   1.0f, 0.0f }
             };
 
-            glBindBuffer(GL_ARRAY_BUFFER, textState.vertexBuffer.vbo);
+            glBindBuffer(GL_ARRAY_BUFFER, textRenderingState.vertexBuffer.vbo);
             glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
             glBindBuffer(GL_ARRAY_BUFFER, 0);
 
@@ -679,7 +991,7 @@ namespace atto {
                 { xpos + w, ypos + h,   uv1.x, uv0.y }
             };
 
-            glBindBuffer(GL_ARRAY_BUFFER, textState.vertexBuffer.vbo);
+            glBindBuffer(GL_ARRAY_BUFFER, textRenderingState.vertexBuffer.vbo);
             glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
             glBindBuffer(GL_ARRAY_BUFFER, 0);
 
@@ -698,22 +1010,22 @@ namespace atto {
     }
 
     void LeEngine::DEBUGPushLine(glm::vec2 a, glm::vec2 b) {
-        const i32 newCount = debugState.lines.GetCount() + 2;
-        if (newCount * sizeof(DebugLineVertex) > debugState.vertexBufer.size) {
+        const i32 newCount = debugRenderingState.lines.GetCount() + 2;
+        if (newCount * sizeof(DebugLineVertex) > debugRenderingState.vertexBufer.size) {
             ATTOINFO("To many debug lines!!");
             return;
         }
 
         DebugLineVertex v1;
         v1.position = a;
-        v1.color = debugState.color;
+        v1.color = debugRenderingState.color;
 
         DebugLineVertex v2;
         v2.position = b;
-        v2.color = debugState.color;
+        v2.color = debugRenderingState.color;
 
-        debugState.lines.Add(v1);
-        debugState.lines.Add(v2);
+        debugRenderingState.lines.Add(v1);
+        debugRenderingState.lines.Add(v2);
     }
 
     void LeEngine::DEBUGPushRay(Ray2D ray) {
@@ -721,8 +1033,8 @@ namespace atto {
     }
 
     void LeEngine::DEBUGPushCircle(glm::vec2 pos, f32 radius) {
-        const i32 newCount = debugState.lines.GetCount() + 2 * 32;
-        if (newCount * sizeof(DebugLineVertex) > debugState.vertexBufer.size) {
+        const i32 newCount = debugRenderingState.lines.GetCount() + 2 * 32;
+        if (newCount * sizeof(DebugLineVertex) > debugRenderingState.vertexBufer.size) {
             ATTOINFO("To many debug lines!!");
             return;
         }
@@ -751,21 +1063,46 @@ namespace atto {
     }
 
     void LeEngine::DEBUGSubmit() {
-        const u32 vertexCount = debugState.lines.GetCount();
+        const u32 vertexCount = debugRenderingState.lines.GetCount();
         const u32 vertexSize = vertexCount * sizeof(DebugLineVertex);
 
         if (vertexCount == 0) {
             return;
         }
 
-        glNamedBufferSubData(debugState.vertexBufer.vbo, 0, vertexSize, debugState.lines.GetData());
+        glNamedBufferSubData(debugRenderingState.vertexBufer.vbo, 0, vertexSize, debugRenderingState.lines.GetData());
 
-        ShaderProgramBind(&debugState.program);
+        ShaderProgramBind(&debugRenderingState.program);
         ShaderProgramSetMat4("p", projection);
-        glBindVertexArray(debugState.vertexBufer.vao);
+        glBindVertexArray(debugRenderingState.vertexBufer.vao);
         glDrawArrays(GL_LINES, 0, vertexCount);
 
-        debugState.lines.Clear();
+        debugRenderingState.lines.Clear();
+    }
+
+    void LeEngine::EditorToggleConsole() {
+        if (app->input->keys[KEY_CODE_F1]) {
+            editorState.consoleOpen = true;
+        }
+        
+        if (editorState.consoleOpen) {
+            editorState.consoleScroll += app->deltaTime;
+            if (editorState.consoleScroll > 1) {
+                editorState.consoleScroll = 1;
+            }
+            
+            f32 target = 0.9f;
+            f32 amount = Lerp(0.0f, target, editorState.consoleScroll);
+
+            DrawShapeSetColor(glm::vec4(1, 1, 1, 0.1f));
+            DrawShapeRect(
+                glm::vec2(0.0f, (1 - amount) * mainSurfaceHeight),
+                glm::vec2(mainSurfaceWidth, mainSurfaceHeight)
+            );
+        }
+        else {
+            editorState.consoleScroll = 0.0f;
+        }
     }
 
     VertexBuffer LeEngine::SubmitVertexBuffer(i32 sizeBytes, const void* data, VertexLayoutType layoutType, bool dyanmic) {
@@ -786,7 +1123,17 @@ namespace atto {
                 glEnableVertexAttribArray(0);
                 glVertexAttribPointer(0, 2, GL_FLOAT, false, buffer.stride, 0);
             } break;
-            
+
+            case VERTEX_LAYOUT_TYPE_SPRITE: {
+                buffer.stride = sizeof(SpriteVertex);
+                glEnableVertexAttribArray(0);
+                glEnableVertexAttribArray(1);
+                glEnableVertexAttribArray(2);
+                glVertexAttribPointer(0, 2, GL_FLOAT, false, buffer.stride, 0);
+                glVertexAttribPointer(1, 2, GL_FLOAT, false, buffer.stride, (void*)(2 * sizeof(f32)));
+                glVertexAttribPointer(2, 4, GL_FLOAT, false, buffer.stride, (void*)((2 + 2) * sizeof(f32)));
+            } break;
+
             case VERTEX_LAYOUT_TYPE_FONT: {
                 buffer.stride = sizeof(FontVertex);
                 glEnableVertexAttribArray(0);
@@ -802,7 +1149,7 @@ namespace atto {
                 glVertexAttribPointer(0, 2, GL_FLOAT, false, buffer.stride, 0);
                 glVertexAttribPointer(1, 4, GL_FLOAT, false, buffer.stride, (void*)(2 * sizeof(f32)));
             } break;
-                
+
             default: {
                 Assert(0, "");
             }
@@ -956,10 +1303,10 @@ namespace atto {
         return success;
     }
 
-    bool LooseAssetLoader::Initialize(AppState* app) {
+    void LooseAssetLoader::RegisterAssets() {
         List<LargeString> texturePaths;
-        FindAllFiles(app->looseAssetPath.GetCStr(), ".png", texturePaths);
-        
+        FindAllFiles(basePathSprites.GetCStr(), ".png", texturePaths);
+
         List<LargeString> audioPaths;
         FindAllFiles(app->looseAssetPath.GetCStr(), ".ogg", audioPaths);
         FindAllFiles(app->looseAssetPath.GetCStr(), ".wav", audioPaths);
@@ -971,15 +1318,16 @@ namespace atto {
         for (i32 texturePathIndex = 0; texturePathIndex < textureCount; ++texturePathIndex) {
             EngineAsset asset = {};
             asset.type = ASSET_TYPE_TEXTURE;
-            
+
             LargeString path = texturePaths[texturePathIndex];
             path.BackSlashesToSlashes();
             asset.path = path;
             path.StripFileExtension();
+            path.RemovePathPrefix(basePathSprites.GetCStr());
             asset.id = AssetId::Create(path.GetCStr());
 
             asset.texture = TextureAsset::CreateDefault();
-            
+
             engineAssets.Add(asset);
 
             ATTOTRACE("Found texture asset: %s", path.GetCStr());
@@ -1021,12 +1369,14 @@ namespace atto {
             ATTOTRACE("Found font asset: %s", path.GetCStr());
         }
 
-        LeEngine::Initialize(app);
 
-        return true;
+        
+        
     }
 
     bool LooseAssetLoader::LoadTextureAsset(const char* name, TextureAsset& textureAsset) {
+
+        textureAsset.generateMipMaps = false;
 
         void* pixelData = stbi_load(name, &textureAsset.width, &textureAsset.height, &textureAsset.channels, 4);
 
@@ -1161,16 +1511,6 @@ namespace atto {
         
         return true;
     }
-
-    void LooseAssetLoader::Shutdown() {
-        texturePakFile.Save("assets/pixel_bois.pak");
-        audioPakFile.Save("assets/noisy_bois.pak");
-        fontPakFile.Save("assets/scribly_bois.pak");
-
-        texturePakFile.Finished();
-        audioPakFile.Finished();
-    }
-
 
     void PackedAssetFile::PutData(byte* data, i32 size) {
         const i32 s = storedData.GetNum();

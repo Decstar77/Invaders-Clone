@@ -28,8 +28,6 @@
 #define LOG_DEBUG_ENABLED 1
 #define LOG_TRACE_ENABLED 1
 
-#define RET_IF_FAILED(call) if (!call) { return false; }
-
 #define DISABLE_COPY_AND_MOVE(clss)						\
     clss(const clss&) = delete;							\
     clss(clss&&) = delete;								\

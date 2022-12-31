@@ -860,7 +860,7 @@ namespace atto
         const i32 entryCount = entries.GetCount();
         for (i32 entryIndex = 0; entryIndex < entryCount; entryIndex++) {
             SpriteDrawEntry& entry = entries[entryIndex];
-            Sprite& sprite = entry.sprite;
+            SpriteAsset& sprite = entry.sprite;
 
             f32 xpos = entry.position.x;
             f32 ypos = entry.position.y;
@@ -883,8 +883,8 @@ namespace atto
                 if (entry.sprite.animated) {
                     w = sprite.frameSize.x * entry.scale.x;
                     h = sprite.frameSize.y * entry.scale.y;
-                    uv0.x = (sprite.frameIndex * sprite.frameSize.x) / sprite.texture->width;
-                    uv1.x = (sprite.frameIndex * sprite.frameSize.x + sprite.frameSize.x) / sprite.texture->width;
+                    //uv0.x = (sprite.frameIndex * sprite.frameSize.x) / sprite.texture->width;
+                    //uv1.x = (sprite.frameIndex * sprite.frameSize.x + sprite.frameSize.x) / sprite.texture->width;
                 }
             }
           

@@ -288,6 +288,7 @@ namespace atto
         void                                Replace(const char& c, const char& replaceWith);
         void                                RemoveCharacter(const i32& removeIndex);
         void                                RemoveWhiteSpace();
+        void                                RemovePathPrefix(const char *prefix);
         b32                                 Contains(const char* str) const;
         b32	                                Contains(const FixedStringBase& str) const;
         b32	                                StartsWith(const FixedStringBase& str) const;
@@ -491,6 +492,30 @@ namespace atto
         }
     }
 
+    template<u64 SizeBytes>
+    void FixedStringBase<SizeBytes>::RemovePathPrefix(const char* prefix) {
+        const i32 l = length;
+        const i32 prefixLength = static_cast<i32>(StringHash::ConstStrLen(prefix));
+
+        Assert(prefixLength <= l, "FixedStringBase, invalid prefix");
+
+        for (i32 i = 0; i < prefixLength; i++) {
+            if (data[i] != prefix[i]) {
+                return;
+            }
+        }
+        
+        for (i32 i = 0; i + prefixLength < l; i++) {
+            data[i] = data[i + prefixLength];
+        }
+
+        length = l - prefixLength;
+        
+        for (i32 i = length; i < CAPCITY; i++) {
+            data[i] = '\0';
+        }
+    }
+    
     template<u64 SizeBytes>
     b32 atto::FixedStringBase<SizeBytes>::Contains(const char* str) const {
         const i32 l = length;

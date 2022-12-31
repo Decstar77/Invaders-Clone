@@ -45,27 +45,26 @@ namespace atto
         FixedList<LargeString, 10000>   logs = {};
     };
 
-
     struct AppState {
-        ALCdevice*          alDevice = nullptr;
-        ALCcontext*         alContext = nullptr;
-        GLFWmonitor*        monitor = nullptr;
-        Logger*             logger = nullptr;
-        GLFWwindow*         window = nullptr;
-        FrameInput*         input = nullptr;
-        LeEngine*           engine = nullptr;
-        GameState*          gameState = nullptr;
-        f32                 deltaTime = 0.0f;
-        i32                 windowWidth = 1280;
-        i32                 windowHeight = 720;
-        f32                 windowAspect = (f32)windowWidth / (f32)windowHeight;
-        SmallString         windowTitle = SmallString::FromLiteral("Game");
-        bool                windowCreateCentered = true;
-        bool                windowVsync = true;
-        bool                windowFullscreen = false;
-        bool                shouldClose = false;
-        bool                useLooseAssets = false;
-        LargeString         looseAssetPath = LargeString::FromLiteral("assets/");
+        ALCdevice*                  alDevice = nullptr;
+        ALCcontext*                 alContext = nullptr;
+        GLFWmonitor*                monitor = nullptr;
+        GLFWwindow*                 window = nullptr;
+        Logger*                     logger = nullptr;
+        FrameInput*                 input = nullptr;
+        LeEngine*                   engine = nullptr;
+        GameState*                  gameState = nullptr;
+        f32                         deltaTime = 0.0f;
+        i32                         windowWidth = 1280;
+        i32                         windowHeight = 720;
+        f32                         windowAspect = (f32)windowWidth / (f32)windowHeight;
+        SmallString                 windowTitle = SmallString::FromLiteral("Game");
+        bool                        windowCreateCentered = true;
+        bool                        windowVsync = true;
+        bool                        windowFullscreen = false;
+        bool                        shouldClose = false;
+        bool                        useLooseAssets = false;
+        LargeString                 looseAssetPath = LargeString::FromLiteral("assets/");
     };
 
     class GameState {

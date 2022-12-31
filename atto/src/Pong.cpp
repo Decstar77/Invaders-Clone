@@ -31,7 +31,7 @@ namespace atto
         luaLogic.Free();
 
         if (luaLogic.Load("assets/scripts/pong.lua")) {
-            luaLogic.SetFunction("atto_create_entity",  &Pong::Lua_CreateEntity);
+            luaLogic.RegisterFunction("atto_create_entity",  &Pong::Lua_CreateEntity);
 
             return true;
         }
@@ -58,7 +58,7 @@ namespace atto
     BoxBounds Pong::GetPlayerPaddleBounds() {
         BoxBounds bounds;
         bounds.min = entities[0].pos;
-        bounds.max = bounds.min + entities[0].sprite.drawScale;
+        bounds.max = bounds.min + entities[0].sprite.frameSize;
 
         return bounds;
     }
@@ -66,7 +66,7 @@ namespace atto
     BoxBounds Pong::GetAIPaddleBounds() {
         BoxBounds bounds;
         bounds.min = entities[1].pos;
-        bounds.max = bounds.min + entities[1].sprite.drawScale;
+        bounds.max = bounds.min + entities[1].sprite.frameSize;
 
         return bounds;
     }
@@ -107,14 +107,14 @@ namespace atto
                     entity->pos.y -= 200.0f * app->deltaTime;
                 }
 
-                entity->pos.y = glm::clamp(entity->pos.y, 0.0f, app->windowHeight - entity->sprite.drawScale.y);
+                entity->pos.y = glm::clamp(entity->pos.y, 0.0f, app->windowHeight - entity->sprite.frameSize.y);
 
             } break;
 
             case PONG_ENTITY_TYPE_AI_PADDEL: {
-                entity->pos.y = entities[2].pos.y - entity->sprite.drawScale.y * 0.5f;
+                entity->pos.y = entities[2].pos.y - entity->sprite.frameSize.y * 0.5f;
 
-                entity->pos.y = glm::clamp(entity->pos.y, 0.0f, app->windowHeight - entity->sprite.drawScale.y);
+                entity->pos.y = glm::clamp(entity->pos.y, 0.0f, app->windowHeight - entity->sprite.frameSize.y);
 
             } break;
 
@@ -124,7 +124,7 @@ namespace atto
                 
                                 
                 Ray2D ballRay = {};
-                ballRay.origin = entity->pos + entity->sprite.drawScale * 0.5f;
+                ballRay.origin = entity->pos + entity->sprite.frameSize * 0.5f;
                 ballRay.direction = glm::normalize( entity->vel );
                 
                 f32 t;
@@ -142,7 +142,7 @@ namespace atto
                     }
                 }
                 
-                if (entity->pos.y < 0 || entity->pos.y > app->windowHeight - entity->sprite.drawScale.y) {
+                if (entity->pos.y < 0 || entity->pos.y > app->windowHeight - entity->sprite.frameSize.y) {
                     engine->AudioPlay(AudioAssetId::Create("assets/sounds/forceField_003"));
                     entity->vel.y = -entity->vel.y;
                 }
@@ -163,7 +163,7 @@ namespace atto
 
                 BoxBounds ballBounds = {};
                 ballBounds.min = entity->pos;
-                ballBounds.max = entity->pos + entity->sprite.drawScale;
+                ballBounds.max = entity->pos + entity->sprite.frameSize;
 
                 //debugRenderer.PushBox(playerPaddleBounds);
                 //debugRenderer.PushBox(aiPaddleBounds);
@@ -188,7 +188,7 @@ namespace atto
             case PONG_ENTITY_TYPE_PLAYER_PADDEL: {
                 SpriteDrawEntry spriteDrawEntry = {};
                 spriteDrawEntry.sprite = entity->sprite;
-                spriteDrawEntry.scale = entity->sprite.drawScale;
+                spriteDrawEntry.scale = entity->sprite.frameSize;
                 spriteDrawEntry.position = entity->pos;
                 spriteDrawEntry.drawKind = SPRITE_DRAW_KIND_QUAD;
 
@@ -198,7 +198,7 @@ namespace atto
             case PONG_ENTITY_TYPE_AI_PADDEL: {
                 SpriteDrawEntry spriteDrawEntry = {};
                 spriteDrawEntry.sprite = entity->sprite;
-                spriteDrawEntry.scale = entity->sprite.drawScale;
+                spriteDrawEntry.scale = entity->sprite.frameSize;
                 spriteDrawEntry.position = entity->pos;
                 spriteDrawEntry.drawKind = SPRITE_DRAW_KIND_QUAD;
 
@@ -208,7 +208,7 @@ namespace atto
             case PONG_ENTITY_TYPE_BALL: {
                 SpriteDrawEntry spriteDrawEntry = {};
                 spriteDrawEntry.sprite = entity->sprite;
-                spriteDrawEntry.scale = entity->sprite.drawScale;
+                spriteDrawEntry.scale = entity->sprite.frameSize;
                 spriteDrawEntry.position = entity->pos;
                 spriteDrawEntry.drawKind = SPRITE_DRAW_KIND_QUAD;
 
@@ -236,11 +236,11 @@ namespace atto
         engine->DEBUGSubmit();
     }
 
-#define LUA_CHECK_PARAM_COUNT(x) if (lua_gettop(L) != x) { ATTOERROR("Invalid number of parameters for function %s", __func__); return -1; }
+#define CHECK_PARAM_COUNT(x) if (lua_gettop(L) != x) { ATTOERROR("Invalid number of parameters for function %s", __func__); return -1; }
 #define GET_GAME_STATE() Pong *pong = (Pong*)LuaScript::GetUserData(L, 1)
     
     int Pong::Lua_CreateEntity(lua_State* L) {
-        LUA_CHECK_PARAM_COUNT(2);
+        CHECK_PARAM_COUNT(2);
         GET_GAME_STATE();
 
         PongEntity entity = {};
@@ -251,10 +251,10 @@ namespace atto
         def["y"].Get(entity.pos.y);
         
         SmallString spriteAssetName = {};
-        entity.sprite = Sprite::CreateDefault();
+        entity.sprite = SpriteAsset::CreateDefault();
         def["sprite"]["texture"].Get(spriteAssetName);
-        def["sprite"]["w"].Get(entity.sprite.drawScale.x);
-        def["sprite"]["h"].Get(entity.sprite.drawScale.y);
+        def["sprite"]["w"].Get(entity.sprite.frameSize.x);
+        def["sprite"]["h"].Get(entity.sprite.frameSize.y);
 
         if (spriteAssetName.GetLength()) {
             TextureAssetId id = TextureAssetId::Create(spriteAssetName.GetCStr());

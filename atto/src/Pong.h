@@ -23,7 +23,7 @@ namespace atto
         glm::vec2              vel = glm::vec2(0, 0);
         glm::vec2              acc = glm::vec2(0, 0);
         f32                    mass = 1.0f;
-        Sprite                 sprite;
+        SpriteAsset                 sprite;
     };
 
     class Pong : public GameState {

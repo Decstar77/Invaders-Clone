@@ -1,9 +1,14 @@
 #pragma once
 
 #include "AttoLib.h"
+#include "AttoLua.h"
 
 namespace atto
 {
+    inline f32 Lerp(const f32 a, const f32 b, const f32 t) {
+        return a + (b - a) * t;
+    }
+
     struct Ray2D {
         glm::vec2 origin;
         glm::vec2 direction;
@@ -90,8 +95,7 @@ namespace atto
         ASSET_TYPE_COUNT
     };
 
-    class AssetId {
-    public:
+    struct AssetId {
         inline static AssetId Create(const char* str) {
             AssetId id;
             id.id = StringHash::Hash(str);
@@ -105,12 +109,10 @@ namespace atto
         }
 
         inline b8 IsValid() const { return id != 0; }
-        inline u32 GetValue() const { return id; }
 
         inline b8 operator ==(const AssetId& other) const { return id == other.id; }
         inline b8 operator !=(const AssetId& other) const { return id != other.id; }
 
-    private:
         u32 id;
     };
 
@@ -130,7 +132,6 @@ namespace atto
         inline b8 operator ==(const AssetId& other) const { return id == other.id; }
         inline b8 operator !=(const AssetId& other) const { return id != other.id; }
 
-    private:
         u32 id;
     };
 
@@ -172,27 +173,31 @@ namespace atto
         i32         index;
     };
 
-    struct Sprite {
+    enum SpriteOrigin {
+        SPRITE_ORIGIN_BOTTOM_LEFT = 0,
+        SPRITE_ORIGIN_CENTER = 1,
+        SPRITE_ORIGIN_COUNT
+    };
+
+    struct SpriteAsset {
+        AssetId                 id;
+
         // Texture stuffies
         glm::vec2               uv0;
         glm::vec2               uv1;
+        TextureAssetId          textureId;
         const TextureAsset*     texture;
-
-        // Draw params
-        glm::vec2               drawScale; // If texture == null then this is the size of the quad/shape in pixels
 
         // Animation stuffies
         bool                    animated;
-        f32                     animationDuration;
-        f32                     animationPlayhead;
+
         glm::vec2               frameSize;
         i32                     frameCount;
-        i32                     frameIndex;
+        SpriteOrigin            origin;
 
-        inline static Sprite CreateDefault() {
-            Sprite spriteAsset = {};
+        inline static SpriteAsset CreateDefault() {
+            SpriteAsset spriteAsset = {};
             spriteAsset.uv1 = glm::vec2(1, 1);
-            spriteAsset.drawScale = glm::vec2(1, 1);
             spriteAsset.frameCount = 1;
             return spriteAsset;
         }
@@ -329,7 +334,6 @@ namespace atto
             TextureAsset   texture;
             FontAsset      font;
             AudioAsset     audio;
-            Sprite    sprite;
         };
     };
     
@@ -338,6 +342,18 @@ namespace atto
     };
 
     struct ShapeRenderingState {
+        glm::vec4           color;
+        ShaderProgram       program;
+        VertexBuffer        vertexBuffer;
+    };
+
+    struct SpriteVertex {
+        glm::vec2 position;
+        glm::vec2 uv;
+        glm::vec4 color;
+    };
+
+    struct SpriteRenderingState {
         glm::vec4           color;
         ShaderProgram       program;
         VertexBuffer        vertexBuffer;
@@ -397,20 +413,39 @@ namespace atto
     };
 
     enum VertexLayoutType {
-        VERTEX_LAYOUT_TYPE_SHAPE,
-        VERTEX_LAYOUT_TYPE_FONT,
-        VERTEX_LAYOUT_TYPE_DEBUG_LINE,
+        VERTEX_LAYOUT_TYPE_SHAPE,           // Vec2(POS)
+        VERTEX_LAYOUT_TYPE_SPRITE,          // Vec2(POS), Vec2(UV), Vec4(COLOR)
+        VERTEX_LAYOUT_TYPE_FONT,            // Vec2(POS), Vec2(UV)
+        VERTEX_LAYOUT_TYPE_DEBUG_LINE,      // Vec2(POS), Vec4(COLOR)
     };
 
     struct GlobalRenderingState {
         ShaderProgram *                     program;
     };
 
+    struct SpriteInstance {
+        f32                     animationDuration;
+        f32                     animationPlayhead;
+    };
+
+    struct EditorState {
+        bool            consoleOpen;
+        f32             consoleScroll;
+    };
+
     class LeEngine {
     public:
-        virtual bool                        Initialize(AppState* app);
-        virtual void                        Shutdown() = 0;
+        bool                                Initialize(AppState* app);
+        void                                Shutdown();
         
+        void                                MouseWheelCallback(f32 x, f32 y);
+
+        f32                                 Random();
+        f32                                 Random(f32 min, f32 max);
+        i32                                 RandomInt(i32 min, i32 max);
+
+        virtual void                        RegisterAssets() = 0;
+
         const void *                        LoadEngineAsset(AssetId id, AssetType type);
         
         TextureAsset*                       LoadTextureAsset(TextureAssetId id);
@@ -427,7 +462,7 @@ namespace atto
         bool                                AudioIsSpeakerPlaying(Speaker speaker);
         bool                                AudioIsSpeakerAlive(Speaker speaker);
 
-        Sprite                              SpriteCreate(TextureAssetId spriteAssetId);
+        SpriteAsset                         SpriteCreate(TextureAssetId spriteAssetId);
 
         void                                ShaderProgramBind(ShaderProgram* program);
         i32                                 ShaderProgramGetUniformLocation(const char* name);
@@ -443,15 +478,24 @@ namespace atto
 
         void                                VertexBufferUpdate(VertexBuffer vertexBuffer, i32 offset, i32 size, const void* data);
 
+        void                                DrawSurfaceResized(i32 w, i32 h);
+
+        void                                DrawClearSurface(const glm::vec4& color = glm::vec4(0, 0, 0, 1));
+        void                                DrawEnableAlphaBlending();
+        
         void                                DrawShapeSetColor(glm::vec4 color);
         void                                DrawShapeRect(glm::vec2 bl, glm::vec2 tr);
+        void                                DrawShapeRectCenterDim(glm::vec2 center, glm::vec2 dim);
         void                                DrawShapeCircle(glm::vec2 center, f32 radius);
         void                                DrawShapeRoundRect(glm::vec2 bl, glm::vec2 tr, f32 radius = 10.0f);
+
+        void                                DrawSpriteSetColor(glm::vec4 color);
+        void                                DrawSprite(const AssetId& id, glm::vec2 pos, i32 frameIndex);
 
         void                                DrawTextSetFont(FontAssetId id);
         void                                DrawTextSetColor(glm::vec4 color);
         void                                DrawTextSetHalign(FontHAlignment hAlignment);
-        void                                DrawTextSetValign(FontVAlignment hAlignment);
+        void                                DrawTextSetValign(FontVAlignment vAlignment);
         f32                                 DrawTextWidth(const char* text);
         BoxBounds                           DrawTextBounds(const char* text);
         f32                                 DrawTextWidth(FontAsset* font, const char* text);
@@ -467,39 +511,70 @@ namespace atto
         void                                DEBUGPushBox(BoxBounds bounds);
         void                                DEBUGSubmit();
 
+        void                                EditorToggleConsole();
+
     protected:
         virtual bool                        LoadTextureAsset(const char* name, TextureAsset& textureAsset) = 0;
         virtual bool                        LoadAudioAsset(const char* name, AudioAsset& audioAsset) = 0;
         virtual bool                        LoadFontAsset(const char* name, FontAsset& fontAsset) = 0;
 
         void                                InitializeShapeRendering();
+        void                                InitializeSpriteRendering();
         void                                InitializeTextRendering();
         void                                InitializeDebugRendering();
+        void                                InitializeLuaBindings();
 
         VertexBuffer                        SubmitVertexBuffer(i32 sizeBytes, const void* data, VertexLayoutType layoutType, bool dyanmic);
         ShaderProgram                       SubmitShaderProgram(const char* vertexSource, const char* fragmentSource);
         u32                                 SubmitTextureR8B8G8A8(i32 width, i32 height, byte* data, i32 wrapMode, bool generateMipMaps);
         u32                                 SubmitAudioClip(i32 sizeBytes, byte* data, i32 channels, i32 bitDepth, i32 sampleRate);
-
+        
         void                                ALCheckErrors();
         u32                                 ALGetFormat(u32 numChannels, u32 bitDepth);
         bool                                GLCheckShaderCompilationErrors(u32 shader);
         bool                                GLCheckShaderLinkErrors(u32 program);
 
+        AppState*                           app;
+
+        LuaScript                           luaEngine;
+
         glm::mat4                           projection;
+        i32                                 mainSurfaceWidth;
+        i32                                 mainSurfaceHeight;
+        
+        LargeString                         basePathSprites;
+        LargeString                         basePathSounds;
+
         GlobalRenderingState                globalRenderingState;
         ShapeRenderingState                 shapeRenderingState;
-        TextRenderingState                  textState;
-        DebugRenderingState                 debugState;
+        SpriteRenderingState                spriteRenderingState;
+        TextRenderingState                  textRenderingState;
+        DebugRenderingState                 debugRenderingState;
+        EditorState                         editorState;
 
         FixedList<EngineAsset, 2048>        engineAssets;
+        FixedList<SpriteAsset, 2048>        registeredSprites;
         FixedList<Speaker,       64>        speakers;
+
+    private:
+        
+        static i32 Lua_IdFromString(lua_State* L);
+        
+        static i32 Lua_AudioPlay(lua_State* L);
+        
+        static i32 Lua_DrawShapeSetColor(lua_State *L);
+        static i32 Lua_DrawShapeRect(lua_State *L);
+        static i32 Lua_DrawShapeRectCenterDim(lua_State *L);
+        static i32 Lua_DrawShapeCircle(lua_State *L);
+        static i32 Lua_DrawShapeRoundRect(lua_State* L);
+
+        static i32 Lua_DrawSprite(lua_State* L);
+
     };
 
     class LooseAssetLoader : public LeEngine {
     public:
-        virtual bool                Initialize(AppState* app) override;
-        virtual void                Shutdown() override;
+        virtual void                RegisterAssets() override;
 
     protected:
         virtual bool                LoadTextureAsset(const char* name, TextureAsset& textureAsset) override;

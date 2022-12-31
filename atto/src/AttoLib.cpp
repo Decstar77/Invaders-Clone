@@ -12,7 +12,10 @@
 #include <string>
 #include <stdarg.h> 
 
+#include "AttoAsset.h"
+
 #include "Pong.h"
+#include "PhysicsSim.h"
 
 namespace atto
 {
@@ -122,6 +125,21 @@ namespace atto
         }
     }
 
+    static void ScrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
+        AppState* app = (AppState*)glfwGetWindowUserPointer(window);
+        app->engine->MouseWheelCallback((f32)xoffset, (f32)yoffset);
+    }
+
+    static void FramebufferCallback(GLFWwindow* window, i32 w, i32 h) {
+        AppState* app = (AppState*)glfwGetWindowUserPointer(window);
+        app->windowWidth = w;
+        app->windowHeight = h;
+        app->windowAspect = (f32)w / (f32)h;
+        if (app->engine) {
+            app->engine->DrawSurfaceResized(w, h);
+        }
+    }
+
     bool Application::CreateApp(AppState &app) {
         app.logger  = new Logger();
         app.input   = new FrameInput();
@@ -171,6 +189,8 @@ namespace atto
         //glfwSetCursorPosCallback(window, MousePositionCallBack);
         glfwSetKeyCallback(app.window, KeyCallback);
         //glfwSetMouseButtonCallback(window, MouseButtonCallBack);
+        glfwSetScrollCallback(app.window, ScrollCallback);
+        glfwSetFramebufferSizeCallback(app.window, FramebufferCallback);
 
         // Initialize GLAD
         gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
@@ -216,7 +236,8 @@ namespace atto
             Assert(0, "ddd");
         }
 
-        app.gameState = new Pong();
+        //app.gameState = new Pong();
+        app.gameState = new PhysicsSim();
         app.gameState->Initialize(&app);
 
         return true;

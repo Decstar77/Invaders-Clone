@@ -1,4 +1,12 @@
 .vs
-bin
 tmp
 vendor
+x86_64
+*.png
+*.jpg
+*.gif
+*.wav
+*.mp3
+*.ogg
+*.ttf
+*.otf

@@ -15,25 +15,38 @@ namespace atto
 {
     class LuaTable {
     public:
+        LuaTable();
         LuaTable(lua_State* L, i32 index, bool isSubTable = false);
         ~LuaTable();
 
         LuaTable operator[](const char *key) const;
 
+        bool Loop();
+        bool LoopGet(LuaTable& value, SmallString &tableName);
+        void EndLoop();
+
         bool Get(i32& value) const;
+        bool Get(u32& value) const;
         bool Get(f32& value) const;
+        bool Get(bool& value) const;
         bool Get(SmallString& value) const;
+        bool Get(LargeString& value) const;
         bool Get(glm::vec2& value) const;
-        
-    private:
+
+        void Put(const char * name, u32 value);
+
         lua_State* L = nullptr;
         i32 index = 0;
+        i32 loopIteration = 0;
         bool isSubTable = false;
     };
     
-    
     class LuaScript {
     public:
+        
+        void CreateNew();
+        void LoadFile(const char* filename);
+        
         bool Load(const char* filename);
         bool LoadSafe(const char* filename);
         void Free();
@@ -45,11 +58,13 @@ namespace atto
         bool GetGlobal(const char* name, i32& value);
         bool GetGlobal(const char* name, f32& value);
         bool GetGlobal(const char* name, bool& value);
+        bool GetGlobal(const char* name, LuaTable& value);
 
         void SetGlobal(const char* name, i32 value);
         void SetGlobal(const char* name, f32 value);
+        void SetGlobal(const char* name, void* value);
         
-        void SetFunction(const char* name, lua_CFunction func);
+        void RegisterFunction(const char* name, lua_CFunction func);
         
         void PushValue(i32 value);
         void PushValue(f32 value);
@@ -64,6 +79,8 @@ namespace atto
         template<typename... _args_>
         bool CallVoidFunction(const char* name, const _args_&&... args);
 
+        lua_State* L = nullptr;
+        
     private:
         template<typename _type_>
         bool GetGlobalNumber(const char* name, _type_& value);
@@ -73,8 +90,6 @@ namespace atto
 
         template<typename _type_>
         void SetGlobalNumber(const char* name, _type_ value);
-
-        lua_State* L = nullptr;
     };
 
     template<typename _type_>
@@ -82,6 +97,7 @@ namespace atto
         Assert(L != nullptr, "LuaScript::GetGlobal -> Lua state is null");
 
         if (lua_getglobal(L, name) != LUA_TNUMBER) {
+            lua_pop(L, 1);
             ATTOERROR("LuaScript::GetGlobal -> Could not get global %s", name);
             return false;
         }

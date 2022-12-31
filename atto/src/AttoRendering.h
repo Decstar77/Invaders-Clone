@@ -156,7 +156,7 @@ namespace atto
 
     struct SpriteDrawEntry {
         SpriteDrawKind          drawKind = SPRITE_DRAW_KIND_SPRITE;
-        Sprite             sprite;
+        SpriteAsset             sprite;
         f32                     depth = 0;
         f32                     rotation = 0;
         glm::vec2               position = glm::vec2(0, 0);

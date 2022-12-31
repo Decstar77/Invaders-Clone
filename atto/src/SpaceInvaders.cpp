@@ -118,7 +118,7 @@ namespace atto {
         window->input->consoleKeyCallback = Console::KeyCallback;
 
         firstScript.Load("assets/scripts/first.lua");
-        firstScript.SetFunction("atto_test", Lua_Test);
+        firstScript.RegisterFunction("atto_test", Lua_Test);
         firstScript.SetGlobal("dt", 0.016f);
         firstScript.PrepareFunction("update_main_menu");
         firstScript.CallFunction(0, 0);
