@@ -60,7 +60,7 @@
       <TreatWarningAsError>true</TreatWarningAsError>
       <DisableSpecificWarnings>4057;4100;4152;4200;4201;4204;4206;4214;4221;4702;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <PreprocessorDefinitions>NDEBUG;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\vendor\glfw\include;..\vendor\assimp\include;..\vendor\glad\include;..\vendor\openal\include;..\vendor\freetype\include;..\vendor\enet\include;..\vendor\lua\include;..\vendor\stb;..\vendor\glm;..\vendor\audio;src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\vendor\glfw\include;..\vendor\assimp\include;..\vendor\glad\include;..\vendor\openal\include;..\vendor\freetype\include;..\vendor\enet\include;..\vendor\lua\include;..\vendor\json;..\vendor\stb;..\vendor\glm;..\vendor\audio;src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
@@ -75,7 +75,7 @@
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>opengl32.lib;OpenAL32.lib;lua54.lib;assimp.lib;kernel32.lib;user32.lib;ws2_32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opengl32.lib;OpenAL32.lib;lua54.lib;kernel32.lib;user32.lib;ws2_32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\vendor\openal\lib;..\vendor\assimp\lib;..\vendor\lua\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors>
     </Link>
@@ -87,7 +87,7 @@
       <TreatWarningAsError>true</TreatWarningAsError>
       <DisableSpecificWarnings>4057;4100;4152;4200;4201;4204;4206;4214;4221;4702;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <PreprocessorDefinitions>_DEBUG;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\vendor\glfw\include;..\vendor\assimp\include;..\vendor\glad\include;..\vendor\openal\include;..\vendor\freetype\include;..\vendor\enet\include;..\vendor\lua\include;..\vendor\stb;..\vendor\glm;..\vendor\audio;src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\vendor\glfw\include;..\vendor\assimp\include;..\vendor\glad\include;..\vendor\openal\include;..\vendor\freetype\include;..\vendor\enet\include;..\vendor\lua\include;..\vendor\json;..\vendor\stb;..\vendor\glm;..\vendor\audio;src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
       <MinimalRebuild>false</MinimalRebuild>
@@ -99,7 +99,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>opengl32.lib;OpenAL32.lib;lua54.lib;assimp.lib;kernel32.lib;user32.lib;ws2_32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opengl32.lib;OpenAL32.lib;lua54.lib;kernel32.lib;user32.lib;ws2_32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\vendor\openal\lib;..\vendor\assimp\lib;..\vendor\lua\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors>
     </Link>

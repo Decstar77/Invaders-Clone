@@ -3,6 +3,10 @@
 #include "AttoDefines.h"
 #include "AttoContainers.h"
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 namespace atto 
 {
     enum KeyCode {
@@ -155,6 +159,8 @@ namespace atto
     typedef void (*AttoKeyCallback)(int key, int scancode, int action, int mods, void* dataPtr);
 
     struct FrameInput {
+        glm::vec2 mousePosPixels;
+
         FixedList<b8, KEY_CODE_COUNT> keys;
         FixedList<b8, KEY_CODE_COUNT> lastKeys;
 

@@ -1,0 +1,21 @@
+{
+    "ship_b": {
+        "texture": "kenny_sprites_01/ship_B",
+        "origin": "CENTER",
+        "frameSize": {
+            "x": 128,
+            "y": 128
+        },
+        "frameCount": 1
+    },
+
+    "starfield_02": {
+        "texture": "backgrounds/starfield_2",
+        "origin": "CENTER",
+        "frameSize": {
+            "x": 2048,
+            "y": 1536
+        },
+        "frameCount": 1
+    }
+}

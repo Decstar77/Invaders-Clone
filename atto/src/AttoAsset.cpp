@@ -16,6 +16,8 @@
 #include <al/alc.h>
 #include <al/al.h>
 
+#include <json/json.hpp>
+
 #include <filesystem>
 #include <random>
 
@@ -71,6 +73,9 @@ namespace atto {
         basePathSprites = LargeString::FromLiteral("assets/sprites/");
         basePathSounds = LargeString::FromLiteral("assets/sounds/");
         
+        cameraView = glm::mat4(1);
+        cameraZoom = 1.0f;
+
         DrawSurfaceResized(app->windowWidth, app->windowHeight);
 
         RegisterAssets();
@@ -82,22 +87,137 @@ namespace atto {
         InitializeTextRendering();
         InitializeDebugRendering();
 
+        
+        EntitySprite sprite = {};
+        sprite.active = true;
+        sprite.sprite = GetSpriteAsset(AssetId::Create("ship_b"));
+        
+        for (i32 i = 0; i < 0; i++) {
+            Entity entity = {};
+            f32 x = Random(0, (f32)mainSurfaceWidth) - (f32)mainSurfaceWidth / 2.0f;
+            f32 y = Random(0, (f32)mainSurfaceHeight) - (f32)mainSurfaceHeight / 2.0f;
+
+            f32 vx = Random() * 2.0f - 1.0f;
+            f32 vy = Random() * 2.0f - 1.0f;
+
+            entity.pos = glm::vec2(x, y);
+            entity.vel = glm::normalize(glm::vec2(vx, vy)) * 100.0f;
+            entity.sprite = sprite;
+
+            entities.Add(entity);
+        }
+
         return true;
     }
 
     void LeEngine::Update(AppState* app) {
+        
+        if (app->input->keys[KEY_CODE_A]) {
+            cameraPos.x -= 1000.0f * app->deltaTime;
+        }
+
+        if (app->input->keys[KEY_CODE_D]) {
+            cameraPos.x += 1000.0f * app->deltaTime;
+        }
+
+        if (app->input->keys[KEY_CODE_W]) {
+            cameraPos.y += 1000.0f * app->deltaTime;
+        }
+
+        if (app->input->keys[KEY_CODE_S]) {
+            cameraPos.y -= 1000.0f * app->deltaTime;
+        }
+
+        if (app->input->keys[KEY_CODE_1]) {
+            cameraZoom += app->deltaTime;
+            DrawSurfaceResized(mainSurfaceWidth, mainSurfaceHeight);
+        }
+        
+        if (app->input->keys[KEY_CODE_2]) {
+            cameraZoom -= app->deltaTime;
+            DrawSurfaceResized(mainSurfaceWidth, mainSurfaceHeight);
+        }
+
+        const f32 roomWidth =  (f32)mainSurfaceWidth;
+        const f32 roomHeight = (f32)mainSurfaceHeight;
+        
+        const f32 halfRoomWidth = roomWidth / 2.0f;
+        const f32 halfRoomHeight = roomHeight / 2.0f;
+        
+        glm::vec2 averageVel = glm::vec2(0, 0);
+
+        const i32 entityCount = entities.GetCount();
+        for (i32 entityIndex = 0; entityIndex < entityCount; entityIndex++) {
+            Entity& entity = entities[entityIndex];
+            
+            entity.pos += entity.vel * app->deltaTime;
+
+            if (entity.pos.x > halfRoomWidth) {
+                entity.pos.x -= roomWidth;
+            }
+
+            if (entity.pos.x < -halfRoomWidth) {
+                entity.pos.x += roomWidth;
+            }
+
+            if (entity.pos.y > halfRoomHeight) {
+                entity.pos.y -= roomHeight;
+            }
+            
+            if (entity.pos.y < -halfRoomHeight) {
+                entity.pos.y += roomHeight;
+            }
+
+            averageVel += entity.vel;
+            
+            if (entity.sprite.active) {
+                // Do animation
+            }
+        }
+
+        averageVel /= (f32)entityCount;
+        averageVel = glm::normalize(averageVel) * app->deltaTime * 100.0f;
+
+        
+        //for (i32 entityIndex = 0; entityIndex < entityCount; entityIndex++) {
+        //    Entity& entity = entities[entityIndex];
+        //    entity.vel += averageVel;
+        //    entity.vel = glm::normalize(entity.vel) * 100.0f;
+        //}
+
         //luaEngine.SetGlobal("dt", app->deltaTime);
         //luaEngine.SetGlobal("key_a", app->input->keys[KEY_CODE_A]);
         //luaEngine.SetGlobal("key_d", app->input->keys[KEY_CODE_D]);
         //luaEngine.CallVoidFunction("update");
-        app->gameState->Update(app);
+
     }
 
     void LeEngine::Render(AppState* app) {
         DrawClearSurface();
         DrawEnableAlphaBlending();
-        //luaEngine.CallVoidFunction("render");
-        app->gameState->Render(app);
+
+        DrawSprite(AssetId::Create("starfield_02"), glm::vec2(0, 0), 0, 0);
+
+        const i32 entityCount = entities.GetCount();
+        for (i32 entityIndex = 0; entityIndex < entityCount; entityIndex++) {
+            Entity& entity = entities[entityIndex];
+            f32 rotation = std::atan2(entity.vel.x, entity.vel.y);
+            if (entity.sprite.active) {
+                DrawSprite(entity.sprite.sprite, entity.pos, rotation, 0);
+            }
+        }
+
+        //glm::vec2 mousePos = app->input->mousePosPixels;
+        glm::vec2 pos = GetMousePosWorldSpace();
+
+        static f32 r = 0;
+        r += app->deltaTime * 2.0f;
+        DrawSprite(AssetId::Create("ship_b"), pos, r, 0);
+
+        DEBUGPushLine(glm::vec2(0, 0), glm::vec2(100, 0));
+        DEBUGSubmit();
+
+        //DrawSprite(AssetId::Create("ship_b"), glm::vec2(100, 0), r, 0);
     }
 
     void LeEngine::Shutdown() {
@@ -105,6 +225,8 @@ namespace atto {
     }
 
     void LeEngine::MouseWheelCallback(f32 x, f32 y) {
+        //cameraZoom += y * 0.1f;
+        //DrawSurfaceResized(mainSurfaceWidth, mainSurfaceHeight);
         //static f32 zoom = 0;
         //zoom -= (i32)y * 150;
         //
@@ -144,6 +266,28 @@ namespace atto {
         static std::mt19937 gen(rd());
         std::uniform_int_distribution<i32> dis(min, max);
         return dis(gen);
+    }
+
+    glm::vec2 LeEngine::ScreenPosToNDC(glm::vec2 pos) {
+        f32 x = (pos.x / (f32)mainSurfaceWidth) * 2.0f - 1.0f;
+        f32 y = -((pos.y / (f32)mainSurfaceHeight) * 2.0f - 1.0f);
+
+        return glm::vec2(x, y);
+    }
+
+    glm::vec2 LeEngine::GetMousePosWorldSpace() {
+        glm::vec2 mousePos = ScreenPosToNDC(app->input->mousePosPixels);
+        
+        glm::mat4 ip = glm::inverse(cameraProjection);
+        glm::mat4 iv = glm::inverse(cameraView);
+        
+        glm::vec4 mousePosClipSpace = glm::vec4(mousePos.x, mousePos.y, 0, 1);
+        glm::vec4 mousePosEyeSpace = ip * mousePosClipSpace;
+        glm::vec4 mousePosWorldSpace = iv * mousePosEyeSpace;
+
+        glm::vec2 pos = glm::vec2(mousePosWorldSpace.x, mousePosWorldSpace.y);
+
+        return pos;
     }
 
     void LeEngine::InitializeShapeRendering() {
@@ -355,49 +499,7 @@ namespace atto {
         // TODO: Load assets via asset functions and remove hard coded string!!
         // TODO: Asset system for lua
         luaEngine.LoadFile("assets/scripts/engine.lua");
-        
-        LuaTable spritesTable = {};
-        if (luaEngine.GetGlobal("sprites", spritesTable)) {
-            while (spritesTable.Loop()) {
-                LuaTable st = {};
-                SmallString name = {};
-                if (spritesTable.LoopGet(st, name)) {
-                    SpriteAsset sprite = SpriteAsset::CreateDefault();
-                    sprite.id = AssetId::Create(name.GetCStr());
 
-                    LargeString texture = {};
-                    if (!st["texture"].Get(texture)) {
-                        ATTOERROR("Sprite %s, does not have a texture", name.GetCStr());
-                        continue;
-                    }
-                    sprite.textureId = TextureAssetId::Create(texture.GetCStr());
-
-                    if (!st["frameSize"].Get(sprite.frameSize)) {
-                        ATTOERROR("Sprite %s, does not have a frameSize", name.GetCStr());
-                        continue;
-                    }
-
-                    if (!st["frameCount"].Get(sprite.frameCount)) {
-                        ATTOERROR("Sprite %s, does not have a frameCount", name.GetCStr());
-                        continue;
-                    }
-
-                    st.Put("id", sprite.id.id);
-
-                    st["animated"].Get(sprite.animated);
-                    st["origin"].Get((i32&)sprite.origin);
-
-                    ATTOTRACE("Sprite registered: %s , %ul", name.GetCStr(), sprite.id.id);
-                    registeredSprites.Add(sprite);
-                }
-                else {
-                    ATTOERROR("Could not find table in lua sprites table");
-                }
-            }
-            spritesTable.EndLoop();
-        }
-
-        luaEngine.CallVoidFunction("start");
     }
 
     const void* LeEngine::LoadEngineAsset(AssetId id, AssetType type) {
@@ -540,6 +642,17 @@ namespace atto {
         return false;
     }
 
+    SpriteAsset* LeEngine::GetSpriteAsset(AssetId id) {
+        const i32 spriteCount = registeredSprites.GetCount();
+        for (i32 i = 0; i < spriteCount; i++) {
+            if (registeredSprites[i].id == id) {
+                return &registeredSprites[i];
+            }
+        }
+
+        return nullptr;
+    }
+
     void LeEngine::ShaderProgramBind(ShaderProgram* program) {
         Assert(program->programHandle != 0, "Shader program not created");
         globalRenderingState.program = program;
@@ -629,10 +742,10 @@ namespace atto {
         mainSurfaceHeight = (glm::abs(720 - h) < glm::abs(1080 - h)) ? 720 : 1080;
         mainSurfaceWidth = (i32)((f32)h * aspect);
         glViewport(0, 0, mainSurfaceWidth, mainSurfaceHeight);
-#elif 0
+#elif 1
         // Widen the camera ???
-        mainSurfaceWidth = w;
-        mainSurfaceHeight = h;
+        mainSurfaceWidth  = (i32)((f32)w * 1.0f);
+        mainSurfaceHeight = (i32)((f32)h * 1.0f);
         glViewport(0, 0, mainSurfaceWidth, mainSurfaceHeight);
 #elif 0
         // Stretch
@@ -665,7 +778,16 @@ namespace atto {
         f32 top = (f32)mainSurfaceHeight / 2.0f;
         f32 bottom = -top;
         
+        f32 n = 1000 * cameraZoom; 
+
+        f32 aspectRatio = (f32)mainSurfaceWidth / (f32)mainSurfaceHeight;
+        left = -n * 0.5f;
+        right = n * 0.5f; 
+        bottom = -n * 0.5f / aspectRatio;
+        top = n * 0.5f / aspectRatio;
+        
         cameraProjection = glm::ortho(left, right, bottom, top, -1.0f, 1.0f);
+        //cameraProjection = glm::ortho(left * cameraZoom, right * cameraZoom, bottom * cameraZoom, top * cameraZoom, -1.0f, 1.0f);
         ATTOTRACE("Main surface resized to %d x %d", mainSurfaceWidth, mainSurfaceHeight);
     }
 
@@ -780,21 +902,19 @@ namespace atto {
         glBindVertexArray(0);
     }
 
-    void LeEngine::DrawSprite(const AssetId& id, glm::vec2 pos, i32 frameIndex) {
-        SpriteAsset *sprite = nullptr;
-
-        const i32 spriteCount = registeredSprites.GetCount();
-        for (i32 i = 0; i < spriteCount; i++) {
-            if (registeredSprites[i].id == id) {
-                sprite = &registeredSprites[i];
-                break;
-            }
-        }
-
+    void LeEngine::DrawSprite(const AssetId& id, glm::vec2 pos, f32 rotation, i32 frameIndex) {
+        SpriteAsset *sprite = GetSpriteAsset(id);
+        
         if (sprite == nullptr) {
             ATTOERROR("SPRITE: Could not find sprite asset");
             return;
         }
+
+        DrawSprite(sprite, pos, rotation, frameIndex);
+    }
+
+    void LeEngine::DrawSprite(SpriteAsset* sprite, glm::vec2 pos, f32 rotation, i32 frameIndex) {
+        Assert(sprite != nullptr, "SPRITE: Sprite is null");
 
         if (sprite->texture == nullptr) {
             sprite->texture = LoadTextureAsset(sprite->textureId);
@@ -804,13 +924,15 @@ namespace atto {
             }
         }
 
+        cameraView = glm::translate(glm::mat4(1.0f), glm::vec3(-cameraPos, 0.0f));
+
         ShaderProgramBind(&spriteRenderingState.program);
-        ShaderProgramSetMat4("p", cameraProjection);
+        ShaderProgramSetMat4("p", cameraProjection * cameraView);
         ShaderProgramSetSampler("texture0", 0);
         ShaderProgramSetTexture(0, sprite->texture->textureHandle);
 
-        f32 xpos = pos.x;
-        f32 ypos = pos.y;
+        f32 xpos = 0.0f;
+        f32 ypos = 0.0f;
 
         f32 scaleX = 1;
         f32 scaleY = 1;
@@ -818,27 +940,38 @@ namespace atto {
         f32 w = sprite->frameSize.x * scaleX;
         f32 h = sprite->frameSize.y * scaleY;
 
-        glm::vec2 uv0 = sprite->uv0;
-        glm::vec2 uv1 = sprite->uv1;
-
         if (sprite->origin == SPRITE_ORIGIN_CENTER) {
             xpos -= w / 2.0f;
             ypos -= h / 2.0f;
         }
+        
+        glm::mat2 rotationMatrix = glm::mat2(cos(rotation), -sin(rotation), sin(rotation), cos(rotation));
+        glm::vec2 vertex1 = rotationMatrix * glm::vec2(xpos, ypos + h);
+        glm::vec2 vertex2 = rotationMatrix * glm::vec2(xpos, ypos);
+        glm::vec2 vertex3 = rotationMatrix * glm::vec2(xpos + w, ypos);
+        glm::vec2 vertex4 = rotationMatrix * glm::vec2(xpos + w, ypos + h);
+        
+        vertex1 += pos;
+        vertex2 += pos;
+        vertex3 += pos;
+        vertex4 += pos;
+
+        glm::vec2 uv0 = sprite->uv0;
+        glm::vec2 uv1 = sprite->uv1;
 
         uv0.x = (frameIndex * sprite->frameSize.x) / sprite->texture->width;
         uv1.x = (frameIndex * sprite->frameSize.x + sprite->frameSize.x) / sprite->texture->width;
-        
+
         glm::vec4 color = spriteRenderingState.color;
 
         f32 vertices[6][2 + 2 + 4] = {
-            { xpos,     ypos + h,    uv0.x, uv0.y,    color.r, color.g, color.b, color.a },
-            { xpos,     ypos,        uv0.x, uv1.y,    color.r, color.g, color.b, color.a },
-            { xpos + w, ypos,        uv1.x, uv1.y,    color.r, color.g, color.b, color.a },
+            { vertex1.x,  vertex1.y,    uv0.x, uv0.y,    color.r, color.g, color.b, color.a },
+            { vertex2.x,  vertex2.y,    uv0.x, uv1.y,    color.r, color.g, color.b, color.a },
+            { vertex3.x,  vertex3.y,    uv1.x, uv1.y,    color.r, color.g, color.b, color.a },
 
-            { xpos,     ypos + h,    uv0.x, uv0.y,    color.r, color.g, color.b, color.a },
-            { xpos + w, ypos,        uv1.x, uv1.y,    color.r, color.g, color.b, color.a },
-            { xpos + w, ypos + h,    uv1.x, uv0.y,    color.r, color.g, color.b, color.a }
+            { vertex1.x, vertex1.y,    uv0.x, uv0.y,    color.r, color.g, color.b, color.a },
+            { vertex3.x, vertex3.y,    uv1.x, uv1.y,    color.r, color.g, color.b, color.a },
+            { vertex4.x, vertex4.y,    uv1.x, uv0.y,    color.r, color.g, color.b, color.a }
         };
 
         static_assert(sizeof(vertices) == sizeof(SpriteVertex) * 6, "Sprite vertex size mismatch");
@@ -1322,6 +1455,7 @@ namespace atto {
     void LooseAssetLoader::RegisterAssets() {
         List<LargeString> texturePaths;
         FindAllFiles(basePathSprites.GetCStr(), ".png", texturePaths);
+        FindAllFiles(basePathSprites.GetCStr(), ".jpg", texturePaths);
 
         List<LargeString> audioPaths;
         FindAllFiles(app->looseAssetPath.GetCStr(), ".ogg", audioPaths);
@@ -1385,9 +1519,31 @@ namespace atto {
             ATTOTRACE("Found font asset: %s", path.GetCStr());
         }
 
+        // TODO: Hard coded string !!
+        std::ifstream spritesRegisterFile("assets/sprites.json");
+        if (spritesRegisterFile.is_open()) {
+            nlohmann::json j = nlohmann::json::parse(spritesRegisterFile);
+            
+            for (nlohmann::json::iterator it = j.begin(); it != j.end(); ++it) {
+                std::string spriteName = it.key();
+                nlohmann::json spriteData = it.value();
+                
+                std::string texture = spriteData["texture"].get<std::string>();
 
-        
-        
+                SpriteAsset sprite = SpriteAsset::CreateDefault();
+                sprite.id = AssetId::Create(spriteName.c_str());
+                sprite.origin = SPRITE_ORIGIN_CENTER;
+                sprite.textureId = TextureAssetId::Create(texture.c_str());
+                sprite.frameCount = spriteData["frameCount"].get<i32>();
+                sprite.frameSize.x = spriteData["frameSize"]["x"].get<f32>();
+                sprite.frameSize.y = spriteData["frameSize"]["y"].get<f32>();
+
+                registeredSprites.Add(sprite);
+            }
+
+            spritesRegisterFile.close();
+        }
+
     }
 
     bool LooseAssetLoader::LoadTextureAsset(const char* name, TextureAsset& textureAsset) {

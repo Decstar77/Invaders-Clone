@@ -148,7 +148,7 @@ namespace atto
         GET_F32_PARAM(pos.y, 4);
         GET_I32_PARAM(frameIndex, 5);
         
-        engine->DrawSprite(id, pos, frameIndex);
+        engine->DrawSprite(id, pos, 0, frameIndex);
 
         return 0;
     }

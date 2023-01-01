@@ -432,6 +432,21 @@ namespace atto
         bool            consoleOpen;
         f32             consoleScroll;
     };
+    
+    struct EntitySprite {
+        bool            active;
+        SpriteAsset*    sprite;
+        f32             animationDuration;
+        f32             animationPlayhead;
+    };
+
+    struct Entity {
+        glm::vec2       pos;
+        glm::vec2       vel;
+        f32             rotation;
+        BoxBounds       boundingBox;
+        EntitySprite    sprite;
+    };
 
     class LeEngine {
     public:
@@ -445,6 +460,9 @@ namespace atto
         f32                                 Random();
         f32                                 Random(f32 min, f32 max);
         i32                                 RandomInt(i32 min, i32 max);
+
+        glm::vec2                           ScreenPosToNDC(glm::vec2 pos);
+        glm::vec2                           GetMousePosWorldSpace();
 
         virtual void                        RegisterAssets() = 0;
 
@@ -464,7 +482,7 @@ namespace atto
         bool                                AudioIsSpeakerPlaying(Speaker speaker);
         bool                                AudioIsSpeakerAlive(Speaker speaker);
 
-        SpriteAsset                         SpriteCreate(TextureAssetId spriteAssetId);
+        SpriteAsset*                        GetSpriteAsset(AssetId id);
 
         void                                ShaderProgramBind(ShaderProgram* program);
         i32                                 ShaderProgramGetUniformLocation(const char* name);
@@ -492,7 +510,8 @@ namespace atto
         void                                DrawShapeRoundRect(glm::vec2 bl, glm::vec2 tr, f32 radius = 10.0f);
 
         void                                DrawSpriteSetColor(glm::vec4 color);
-        void                                DrawSprite(const AssetId& id, glm::vec2 pos, i32 frameIndex);
+        void                                DrawSprite(const AssetId& id, glm::vec2 pos, f32 rotation, i32 frameIndex);
+        void                                DrawSprite(SpriteAsset* spriteAsset, glm::vec2 pos, f32 rotation, i32 frameIndex);
 
         void                                DrawTextSetFont(FontAssetId id);
         void                                DrawTextSetColor(glm::vec4 color);
@@ -518,7 +537,10 @@ namespace atto
         glm::mat4                           cameraProjection;
         glm::mat4                           cameraView;
         glm::mat4                           screenProjection;
-        
+
+        glm::vec2                           cameraPos;
+        f32                                 cameraZoom;
+
         i32                                 mainSurfaceWidth;
         i32                                 mainSurfaceHeight;
 
@@ -558,9 +580,11 @@ namespace atto
         DebugRenderingState                 debugRenderingState;
         EditorState                         editorState;
 
-        FixedList<EngineAsset, 2048>        engineAssets;
-        FixedList<SpriteAsset, 2048>        registeredSprites;
+        FixedList<EngineAsset, 2048>        engineAssets;      // These never get moved, so it's safe to store a pointer to them.
+        FixedList<SpriteAsset, 2048>        registeredSprites; // These never get moved, so it's safe to store a pointer to them.
+
         FixedList<Speaker,       64>        speakers;
+        FixedList<Entity,      2048>        entities;
 
     private:
         

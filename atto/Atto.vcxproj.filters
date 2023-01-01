@@ -39,13 +39,15 @@
     <ClInclude Include="src\AttoRendering.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="src\PhysicsSim.h">
+      <Filter>src</Filter>
+    </ClInclude>
     <ClInclude Include="src\Pong.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="src\SpaceInvaders.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="src\PhysicsSim.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\vendor\stb\stb_vorbis\stb_vorbis.c">
@@ -63,6 +65,9 @@
     <ClCompile Include="src\AttoLua.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\AttoLuaBindings.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="src\AttoRendering.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -72,13 +77,14 @@
     <ClCompile Include="src\Main.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\PhysicsSim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="src\Pong.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\SpaceInvaders.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\PhysicsSim.cpp" />
-    <ClCompile Include="src\AttoLuaBindings.cpp" />
   </ItemGroup>
 </Project>

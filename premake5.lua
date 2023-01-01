@@ -8,6 +8,7 @@ local FREE_TYPE_DIR = "vendor/freetype"
 local ENET_DIR = "vendor/enet"
 local STB_DIR = "vendor/stb"
 local LUA_DIR = "vendor/lua"
+local JSON_DIR = "vendor/json"
 
 solution "Atto"
     location("")
@@ -65,6 +66,7 @@ project "Atto"
         path.join(FREE_TYPE_DIR, "include"),
         path.join(ENET_DIR, "include"),
         path.join(LUA_DIR, "include"),
+        JSON_DIR,
         STB_DIR,
         GLM_DIR,
         AUDIO_FILE_DIR,
@@ -86,7 +88,7 @@ project "Atto"
         path.join(STB_DIR, "stb_vorbis/stb_vorbis.c")
     }
 
-    links { "opengl32", "glfw", "glad", "OpenAL32", "freetype", "enet", "lua54", "assimp" }
+    links { "opengl32", "glfw", "glad", "OpenAL32", "freetype", "enet", "lua54", }
 
     filter "system:windows"
         links { "kernel32", "user32", "ws2_32", "winmm" }

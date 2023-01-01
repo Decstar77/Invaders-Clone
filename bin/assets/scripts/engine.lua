@@ -1,5 +1,5 @@
 local vec2 = require ("assets.scripts.vec2")
-require ("assets.sprites.sprites")
+
 -- engine is set before init
 -- atto functions are the binding functions
 
@@ -44,19 +44,12 @@ player = {
 }
 
 function start()
-    print("Lua starting")
-    for k, v in pairs(sprites) do
-        print("Lua sprite id " .. v.id)
-    end
+
 end
 
-
 function update()
-    if key_a then
-        player.pos.x = player.pos.x - 1
-    end
+
 end
 
 function render()
-    draw_shape_rect_center(0, 0, 100, 100)
 end

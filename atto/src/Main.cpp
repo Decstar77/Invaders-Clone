@@ -88,8 +88,6 @@ int main(const int argc, const char** argv) {
         //ATTOINFO("Delta time = %f", elapsedMS);
     }
 
-    app.gameState->Shutdown(&app);
-
     Application::DestroyApp(app);
 
     return 0;

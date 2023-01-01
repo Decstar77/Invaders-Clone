@@ -125,6 +125,13 @@ namespace atto
         }
     }
 
+    static void MousePositionCallBack(GLFWwindow* window, double xpos, double ypos) {
+        AppState* app = (AppState*)glfwGetWindowUserPointer(window);
+        FrameInput* input = app->input;
+
+        input->mousePosPixels = glm::vec2((f32)xpos, (f32)ypos);
+    }
+
     static void ScrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
         AppState* app = (AppState*)glfwGetWindowUserPointer(window);
         app->engine->MouseWheelCallback((f32)xoffset, (f32)yoffset);
@@ -186,7 +193,7 @@ namespace atto
         }
         //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-        //glfwSetCursorPosCallback(window, MousePositionCallBack);
+        glfwSetCursorPosCallback(app.window, MousePositionCallBack);
         glfwSetKeyCallback(app.window, KeyCallback);
         //glfwSetMouseButtonCallback(window, MouseButtonCallBack);
         glfwSetScrollCallback(app.window, ScrollCallback);
@@ -237,8 +244,8 @@ namespace atto
         }
 
         //app.gameState = new Pong();
-        app.gameState = new PhysicsSim();
-        app.gameState->Initialize(&app);
+        //app.gameState = new PhysicsSim();
+        //app.gameState->Initialize(&app);
 
         return true;
     }
