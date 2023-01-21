@@ -52,7 +52,6 @@ namespace atto
             }
         )";
 
-
     bool LeEngine::InitializeFonts() {
         bool compiled = ShaderCompile(basicFontShader, INPUT_LAYOUT_BASIC_FONT, renderer.fontShader);
         if (!compiled) {
@@ -75,26 +74,28 @@ namespace atto
         return true;
     }
 
-    static void FlipPixelsOnY(byte* pixels, i32 width, i32 height) {
-
-    }
-
     void LeEngine::FontCreate(FontAsset& font) {
         i32 fileSize = 0;
-        byte* tff = LoadEntireFile("C:/Windows/Fonts/Arial.ttf", fileSize);
-        
+        byte* tff = LoadEntireFile(font.path.GetCStr(), fileSize);
+        //byte* tff = LoadEntireFile("C:/Windows/Fonts/Arial.ttf", fileSize);
+        //byte* tff = LoadEntireFile("C:/Projects/Atto - G2/bin/assets/fonts/Roboto_Regular.ttf", fileSize);
+
+        if (tff == nullptr) {
+            return;
+        }
+
         if (stbtt_InitFont(&font.info, tff, 0) == 0) {
             ATTOERROR("Could not init font");
         }
         
         stbtt_GetFontVMetrics(&font.info, &font.ascent, &font.descent, &font.lineGap);
 
-        byte* pixels = new byte[512 * 512];
-        stbtt_BakeFontBitmap(tff, 0, 32, pixels, 512, 512, 32, 96, font.chardata.GetData());
+        byte* pixels = new byte[256 * 256];
+        stbtt_BakeFontBitmap(tff, 0, font.fontSize, pixels, 256, 256, 32, 96, font.chardata.GetData());
 
         D3D11_TEXTURE2D_DESC textureDesc = {};
-        textureDesc.Width = 512;
-        textureDesc.Height = 512;
+        textureDesc.Width = 256;
+        textureDesc.Height = 256;
         textureDesc.MipLevels = 1;
         textureDesc.ArraySize = 1;
         textureDesc.Format = DXGI_FORMAT_R8_UNORM;
@@ -106,8 +107,8 @@ namespace atto
         
         D3D11_SUBRESOURCE_DATA subresourceData = {};
         subresourceData.pSysMem = pixels;
-        subresourceData.SysMemPitch = 512;
-        subresourceData.SysMemSlicePitch = 512 * 512;
+        subresourceData.SysMemPitch = 256;
+        subresourceData.SysMemSlicePitch = 256 * 256;
         
         HRESULT hr = renderer.device->CreateTexture2D(&textureDesc, &subresourceData, &font.texture);
         if (FAILED(hr)) {
@@ -125,17 +126,27 @@ namespace atto
             ATTOERROR("Could not create shader resource view");
         }
 
+        font.isLoaded = true;
+
         delete[] pixels;
     }
 
     void LeEngine::FontRenderText(const char* text, FontAssetId fontId, glm::vec2 pos, glm::vec4 color) {
-        FontAsset & font = fontAssets[0];
+        FontAsset* fontPtr = FindAsset(fontAssets, fontId.ToRawId());
+        if (fontPtr == nullptr) {
+            ATTOERROR("Could not find font asset");
+            return;
+        }
 
-        f32 scale = stbtt_ScaleForPixelHeight(&font.info, 32);
-        f32 xpos = 100;
-        f32 ypos = 100;
+        FontAsset& font = *fontPtr;
+        if (font.isLoaded == false) {
+            FontCreate(font);
+        }
 
-        text = "ABCD";
+        f32 scale = stbtt_ScaleForPixelHeight(&font.info, font.fontSize);
+        f32 xpos = pos.x;
+        f32 ypos = pos.y;
+
         const i32 textLength = (i32)strlen(text);
         for (i32 charIndex = 0; charIndex < textLength; charIndex++) {
             i32 cp = (i32)text[charIndex];
@@ -144,36 +155,22 @@ namespace atto
             }
 
             stbtt_aligned_quad quad = {};
-            stbtt_GetBakedQuad(font.chardata.GetData(), 512, 512, cp - 32, &xpos, &ypos, &quad, true);
+            stbtt_GetBakedQuad(font.chardata.GetData(), 256, 256, cp - 32, &xpos, &ypos, &quad, true);
 
-            f32 h = 200;
-            f32 w = 200;
             f32 vertices[6][4] = {
-                { quad.x0,     quad.y0,     quad.s0, quad.t0 },
-                { quad.x1,     quad.y0,     quad.s1, quad.t0 },
-                { quad.x1,     quad.y1,     quad.s1, quad.t1 },
+                { quad.x0, quad.y0, quad.s0, quad.t0 },
+                { quad.x1, quad.y0, quad.s1, quad.t0 },
+                { quad.x1, quad.y1, quad.s1, quad.t1 },
 
-                { quad.x0,      quad.y0,    quad.s0, quad.t0 },
-                { quad.x1,      quad.y1,    quad.s1, quad.t1 },
-                { quad.x0,      quad.y1,    quad.s0, quad.t1 }
+                { quad.x0, quad.y0, quad.s0, quad.t0 },
+                { quad.x1, quad.y1, quad.s1, quad.t1 },
+                { quad.x0, quad.y1, quad.s0, quad.t1 }
             };
 
-            //stbtt_GetBakedQuad(cdata, 512, 512, *text - 32, &x, &y, &q, 1);//1=opengl & d3d10+,0=d3d9
-            //glTexCoord2f(q.s0, q.t0); glVertex2f(q.x0, q.y0);
-            //glTexCoord2f(q.s1, q.t0); glVertex2f(q.x1, q.y0);
-            //glTexCoord2f(q.s1, q.t1); glVertex2f(q.x1, q.y1);
-            //glTexCoord2f(q.s0, q.t1); glVertex2f(q.x0, q.y1);
-            
-            //f32 vertices[6][4] = {
-            //    { xpos,     ypos + h,   0.0f, 0.0f },
-            //    { xpos,     ypos,       0.0f, 1.0f },
-            //    { xpos + w, ypos,       1.0f, 1.0f },
-
-            //    { xpos,     ypos + h,   0.0f, 0.0f },
-            //    { xpos + w, ypos,       1.0f, 1.0f },
-            //    { xpos + w, ypos + h,   1.0f, 0.0f }
-            //};
-
+            if (text[charIndex + 1]) {
+                f32 kadv = (f32)stbtt_GetCodepointKernAdvance(&font.info, cp, (i32)text[charIndex + 1]);
+                xpos -= kadv * scale;
+            }
 
             D3D11_MAPPED_SUBRESOURCE mappedResource = {};
             HRESULT hr = renderer.context->Map(renderer.fontVertexBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
@@ -188,6 +185,7 @@ namespace atto
             const u32 offset = 0;
             const u32 stride = sizeof(FontVertex);
             renderer.context->RSSetState(renderer.rasterizerStates.cullNone.Get());
+            renderer.context->OMSetBlendState(renderer.blendStates.alphaBlend.Get(), nullptr, 0xffffffff);
             renderer.context->OMSetDepthStencilState(renderer.depthStates.depthDisabled.Get(), 0);
             renderer.context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             renderer.context->IASetVertexBuffers(0, 1, renderer.fontVertexBuffer.GetAddressOf(), &stride, &offset);
@@ -197,8 +195,6 @@ namespace atto
             renderer.context->PSSetShaderResources(0, 1, font.srv.GetAddressOf());
             renderer.context->Draw(6, 0);
         }
-
-
     }
 
 

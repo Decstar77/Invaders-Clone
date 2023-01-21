@@ -148,6 +148,9 @@ namespace atto {
 
     void LeEngine::Update(AppState* app) {
         CameraDoFreeFlyKeys(editorCamera);
+        if (IsKeyJustDown(app->input, KEY_CODE_Y)) {
+            ATTOINFO("UYes");
+        }
     }
 
     void LeEngine::Render(AppState* app) {
@@ -204,8 +207,7 @@ namespace atto {
             //MeshBind(primitiveCapsule);
             //MeshDraw(primitiveCapsule);
 
-            FontRenderText(" ", FontAssetId(), glm::vec2(0, 0), glm::vec4(0));
-            
+            FontRenderText("The quick brown fox jumps over the lazy cat.", FontAssetId::Create("assets/fonts/Roboto_Regular"), glm::vec2(100, 100));
         }
         //FontRenderText("Yallow", someFont, 0, 0, 0.5f, glm::vec4(1, 1, 0, 1));
 

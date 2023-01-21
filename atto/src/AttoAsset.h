@@ -226,19 +226,20 @@ namespace atto
 
     struct FontAsset {
         AssetId                                 id;
+        bool                                    isLoaded;
         LargeString                             path;
         stbtt_fontinfo                          info;
         FixedList<stbtt_bakedchar, 96>          chardata;
         i32                                     ascent;
         i32                                     descent;
         i32                                     lineGap;
-        i32                                     fontSize;
+        f32                                     fontSize;
         wrl::ComPtr<ID3D11Texture2D>            texture;
         wrl::ComPtr<ID3D11ShaderResourceView>   srv;
 
         static FontAsset CreateDefault() {
             FontAsset fontAsset = {};
-            fontAsset.fontSize = 38;
+            fontAsset.fontSize = 32;
             return fontAsset;
         }
     };
@@ -350,6 +351,12 @@ namespace atto
         wrl::ComPtr<ID3D11RasterizerState> cullFront;
         wrl::ComPtr<ID3D11RasterizerState> wireframe;
     };
+    
+    struct BlendStates {
+        wrl::ComPtr< ID3D11BlendState> opaqueBlend;
+        wrl::ComPtr< ID3D11BlendState> alphaBlend;
+        wrl::ComPtr< ID3D11BlendState> additiveBlend;
+    };
 
     struct GlobalRenderer {
         wrl::ComPtr<IDXGIFactory2>              factory;
@@ -369,6 +376,7 @@ namespace atto
         SamplerStates                           samplerStates;
         DepthStates                             depthStates;
         RasterizerStates                        rasterizerStates;
+        BlendStates                             blendStates;
         DebugDrawState                          debugDrawState;
         ShaderAsset                             fontShader;
         wrl::ComPtr<ID3D11Buffer>               fontVertexBuffer;
@@ -553,7 +561,7 @@ namespace atto
         void                                TextureBind(TextureAsset* texture, i32 slot);
         
         void                                FontCreate(FontAsset& font);
-        void                                FontRenderText(const char *text, FontAssetId fontId, glm::vec2 pos, glm::vec4 color);
+        void                                FontRenderText(const char *text, FontAssetId fontId, glm::vec2 pos, glm::vec4 color = glm::vec4(1,1,1,1));
 
         void                                AudioCreate(AudioAsset& audio);
 

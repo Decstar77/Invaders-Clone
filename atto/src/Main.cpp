@@ -63,7 +63,11 @@ int main(const int argc, const char** argv) {
         if (app.shouldClose || IsKeyJustDown(app.input, GLFW_KEY_ESCAPE)) {
             app.shouldClose = true;
         }
-        
+
+        // Need to cache the state here because we are going to update the state in the game loop
+        FixedList<b8, KEY_CODE_COUNT> keysBeforeUpdate = app.input->lastKeys;
+        FixedList<b8, MOUSE_BUTTON_LAST> mouseBeforeUpdate = app.input->lastMouseButtons;
+
         while (lagMS >= targetFrameTimeMS) {
             app.deltaTime = (f32)(targetFrameTimeMS / 1000.0);
             app.engine->Update(&app);
@@ -73,7 +77,14 @@ int main(const int argc, const char** argv) {
             app.input->lastMouseButtons = app.input->mouseButtons;
         }
 
+        // Restore the state before the render update
+        app.input->lastKeys = keysBeforeUpdate;
+        app.input->lastMouseButtons = mouseBeforeUpdate;
+        
         app.engine->Render(&app);
+
+        app.input->lastKeys = app.input->keys;
+        app.input->lastMouseButtons = app.input->mouseButtons;
 
         Application::PresentApp(app);
 
