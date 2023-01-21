@@ -27,7 +27,8 @@ namespace atto
         const T* Get(const i32& index) const;
 
         T& operator[](const i32& index);
-        T operator[](const i32& index) const;
+        const T& operator[](const i32& index) const;
+       
 
     private:
         T data[capcity];
@@ -132,14 +133,14 @@ namespace atto
     }
 
     template<typename T, i32 capcity>
-    T FixedList<T, capcity>::operator[](const i32& index) const {
+    T& FixedList<T, capcity>::operator[](const i32& index) {
         Assert(index >= 0 && index < capcity, "Array, invalid index");
 
         return data[index];
     }
 
     template<typename T, i32 capcity>
-    T& FixedList<T, capcity>::operator[](const i32& index) {
+    const T& FixedList<T, capcity>::operator[](const i32& index) const {
         Assert(index >= 0 && index < capcity, "Array, invalid index");
 
         return data[index];
@@ -292,6 +293,7 @@ namespace atto
         b32                                 Contains(const char* str) const;
         b32	                                Contains(const FixedStringBase& str) const;
         b32	                                StartsWith(const FixedStringBase& str) const;
+        b32                                 EndsWith(const char * str) const;
         void                                CopyFrom(const FixedStringBase& src, const i32& start, const i32& end);
         void                                ToUpperCase();
         void                                StripFileExtension();
@@ -311,6 +313,7 @@ namespace atto
         i32 length;
         char data[CAPCITY];
     };
+
 
     template<u64 SizeBytes>
     FixedStringBase<SizeBytes> constexpr FixedStringBase<SizeBytes>::FromLiteral(const char* str) {
@@ -573,6 +576,24 @@ namespace atto
 
         for (i32 i = 0; i < ll; i++) {
             if (data[i] != str.data[i]) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    template<u64 SizeBytes>
+    b32 FixedStringBase<SizeBytes>::EndsWith(const char* str) const {
+        const i32 l = length;
+        const i32 strLen = static_cast<i32>(StringHash::ConstStrLen(str));
+
+        if (l < strLen) {
+            return false;
+        }
+
+        for (i32 i = 0; i < strLen; i++) {
+            if (data[l - strLen + i] != str[i]) {
                 return false;
             }
         }

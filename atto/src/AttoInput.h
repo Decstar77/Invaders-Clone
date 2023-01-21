@@ -160,6 +160,7 @@ namespace atto
 
     struct FrameInput {
         glm::vec2 mousePosPixels;
+        glm::vec2 lastMousePosPixels;
 
         FixedList<b8, KEY_CODE_COUNT> keys;
         FixedList<b8, KEY_CODE_COUNT> lastKeys;
@@ -172,6 +173,7 @@ namespace atto
     };
 
 #define IsKeyJustDown(input, key) (input->keys[key] && input->lastKeys[key] == false)
+#define IsMouseJustDown(input, key) (input->mouseButtons[key] && input->lastMouseButtons[key] == false)
 
 }
 

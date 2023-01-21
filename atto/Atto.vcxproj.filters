@@ -24,6 +24,9 @@
     <ClInclude Include="src\AttoDefines.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="src\AttoGrad.h">
+      <Filter>src</Filter>
+    </ClInclude>
     <ClInclude Include="src\AttoInput.h">
       <Filter>src</Filter>
     </ClInclude>
@@ -39,15 +42,6 @@
     <ClInclude Include="src\AttoRendering.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="src\PhysicsSim.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="src\Pong.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="src\SpaceInvaders.h">
-      <Filter>src</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\vendor\stb\stb_vorbis\stb_vorbis.c">
@@ -56,7 +50,13 @@
     <ClCompile Include="src\AttoAsset.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\AttoAudio.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="src\AttoContainers.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AttoGrad.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AttoLib.cpp">
@@ -71,20 +71,16 @@
     <ClCompile Include="src\AttoRendering.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\AttoRenderingDX11.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="src\LeMimcrosoft.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\Main.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\PhysicsSim.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Pong.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\SpaceInvaders.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
+    <ClCompile Include="src\AttoFont.cpp" />
+    <ClCompile Include="src\AttoFiles.cpp" />
   </ItemGroup>
 </Project>

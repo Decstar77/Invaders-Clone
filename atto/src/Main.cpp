@@ -1,12 +1,11 @@
 #include "AttoLib.h"
 #include "AttoLua.h"
 
-#include "Pong.h"
-#include "SpaceInvaders.h"
+#include "AttoAsset.h"
+#include "AttoGrad.h"
 
 #include <iostream>
 
-#include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
 /*
@@ -37,20 +36,13 @@ using namespace atto;
 
 int main(const int argc, const char** argv) {
 
-    LuaScript configScript;
-    if (!configScript.LoadSafe("config.lua")) {
-        Application::DisplayFatalError("Could not find config.lua");
-        return 1;
-    }
-    
     AppState app = {};
-    app.windowTitle = "Cosmic Combat";
-    configScript.GetGlobalSafe("windowWidth",           app.windowWidth);
-    configScript.GetGlobalSafe("windowHeight",          app.windowHeight);
-    configScript.GetGlobalSafe("windowFullscreen",      app.windowFullscreen);
-    configScript.GetGlobalSafe("windowCreateCentered",  app.windowCreateCentered);
-    configScript.GetGlobal("renderingVsync",            app.windowVsync);
-    configScript.GetGlobal("assUseLooseAssets",         app.useLooseAssets);
+    //configScript.GetGlobalSafe("windowWidth",           app.windowWidth);
+    //configScript.GetGlobalSafe("windowHeight",          app.windowHeight);
+    //configScript.GetGlobalSafe("windowFullscreen",      app.windowFullscreen);
+    //configScript.GetGlobalSafe("windowCreateCentered",  app.windowCreateCentered);
+    //configScript.GetGlobal("renderingVsync",            app.windowVsync);
+    //configScript.GetGlobal("assUseLooseAssets",         app.useLooseAssets);
 
     app.windowAspect = (f32)app.windowWidth / (f32)app.windowHeight;
 

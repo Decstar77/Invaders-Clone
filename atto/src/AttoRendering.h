@@ -1,13 +1,9 @@
 #pragma once
 
 #include "AttoLib.h"
-#include "AttoAsset.h"
-#include "AttoLua.h"
 
 namespace atto
 {
-
-
     class SoftwareRenderSurface {
     public:
         void CreateEmpty(i32 width, i32 height);
@@ -21,171 +17,54 @@ namespace atto
         u32 height;
     };
 
-    class Mesh {
+    class TileSheetGenerator {
     public:
-        static constexpr u32 PNT_STRIDE = (3 + 3 + 2) * sizeof(f32);
-
-        void CreateUnitQuad();
-        void CreateMesh(const void* vertexData, u32 vertexCount, u32 vertexStride);
-
-        void BindAndDraw();
-
-        u32 vao = 0;
-        u32 vbo = 0;
-        u32 ibo = 0;
-        u32 vertexCount = 0;
-        u32 vertexStride = 0;
-        u32 indexCount = 0;
-    };
-
-    class Texture {
-    public:
-        void CreateFromAsset(const TextureAsset& textureAsset);
-        void CreateFontTexture(i32 width, i32 height, const void* data);
-        void CreateRGBA8(i32 width, i32 height, const void* data);
-
-        void Bind(u32 textureUnit);
-
-        i32 width = 0;
-        i32 height = 0;
-        u32 texture = 0;
-    };
-    
-    struct ShaderUniformValue {
-        SmallString name;
-        i32 location = -1;
-    };
-
-    class Program {
-    public:
-        void Load();
-        void Free();
-
-        bool Create(const char* vertexSource, const char* fragmentSource);
-
-        bool CheckCompilationErrors(u32 shader);
-        bool CheckLinkErrors(u32 program);
-
-        void Bind();
-
-        void SetInt(const char* name, i32 value);
-        void SetVec4f(const char* name, f32 x, f32 y, f32 z, f32 w);
-        void SetVec4f(const char* name, const glm::vec4& value);
-        void SetSampler(const char* name, const u32 textureUnit);
-        void SetMat4f(const char* name, const glm::mat4& mat);
-
-        i32 GetUniformLocation(const char* name);
-
-        u32                                 program;
-        FixedList<ShaderUniformValue, 16>   uniforms;
-    };
-
-    class RayCast {
-    public:
-        static bool Box(const BoxBounds& bounds, const Ray2D& ray, f32 &t);
-    };
-
-    class DebugRenderer {
-    public:
-        struct LineVertex {
-            glm::vec2 position;
-            glm::vec4 color;
+        struct Tile {
+            u32 width;
+            u32 height;
+            u32 xPos;
+            u32 yPos;
+            FixedList<byte, 2048> data;
+            glm::vec2 uv0;
+            glm::vec2 uv1;
+            glm::vec2 boundingUV0;
+            glm::vec2 boundingUV1;
         };
 
-        void Initialize(u32 maxLines = 1024);
-        void CreateProgram();
-        void CreateBuffer();
+        void            AddTile(u32 width, u32 height, void* data);
+        void            GenerateTiles(List<byte>& pixels, i32& width, i32& height);
+        void            GetTileUV(i32 index, glm::vec2& uv0, glm::vec2& uv1);
 
-        void PushLine(const glm::vec2& start, const glm::vec2& end, const glm::vec4& color);
-        void PushRay(const Ray2D& ray, const glm::vec4& color = glm::vec4(0, 0.8f, 0, 1));
-        void PushBox(const BoxBounds& box, const glm::vec4& color = glm::vec4(0, 0.8f, 0, 1));
-
-        void Draw(const glm::mat4& projection);
-
-        List<LineVertex>        lines;
-        Program                 program;
-        u32                     totalSizeBytes = 0;
-        u32                     vao = 0;
-        u32                     vbo = 0;
+        List<Tile>      tiles;
+        u32             pixelStrideBytes = 4;
     };
 
-    enum class FontPivot {
-        BottomLeft = 0,
-        Center,
-    };
-
-    struct FontDrawEntry {
-        LargeString         text;
-        const FontAsset*    font;
-        FontPivot           pivot = FontPivot::BottomLeft;
-        f32                 underlineThinkness = 0.0f;
-        f32                 underlinePercent = 1.0f;
-        glm::vec2           position;
-        BoxBounds           bounds;
-    };
-
-    class FontRenderer {
+    class Bitmap {
     public:
-        enum class FontRenderingMode {
-            FONT_RENDERING_MODE_TEXT = 0,
-            FONT_RENDERING_MODE_GUI = 1
+#pragma pack(push, 1)
+        struct FileHeader {
+            char type[2];
+            u32 size;
+            u16 reserved1;
+            u16 reserved2;
+            u32 offset;
         };
 
-        void                    Initialize();
-        void                    CreateProgram();
-        void                    CreateBuffer();
-
-        f32                     GetTextWidth(const FontAsset* font, const char* text);
-        BoxBounds               GetTextBounds(const FontAsset* font, const char* text);
-
-        BoxBounds               Push(FontDrawEntry& drawEntry);
-        void                    Push(const FontAsset* font, const glm::vec2& pos, const char* text);
-        void                    Draw(const glm::mat4& projection);
-
-        Program                 textProgram;
-        List<FontDrawEntry>     entries;
-        u32                     totalSizeBytes = 0;
-        u32                     vao = 0;
-        u32                     vbo = 0;
-    };
-
-    enum SpriteDrawKind {
-        SPRITE_DRAW_KIND_SPRITE = 0,
-        SPRITE_DRAW_KIND_QUAD = 1,
-    };
-
-    struct SpriteDrawEntry {
-        SpriteDrawKind          drawKind = SPRITE_DRAW_KIND_SPRITE;
-        SpriteAsset             sprite;
-        f32                     depth = 0;
-        f32                     rotation = 0;
-        glm::vec2               position = glm::vec2(0, 0);
-        glm::vec2               scale = glm::vec2(1, 1);
-        glm::vec4               color = glm::vec4(1, 1, 1, 1);
-    };
-
-    class SpriteRenderer {
-    public:
-        struct SpriteVertex {
-            glm::vec2 position;
-            glm::vec2 uv;
-            glm::vec4 color;
+        struct InfoHeader {
+            u32 size;
+            i32 width;
+            i32 height;
+            u16 planes;
+            u16 bitCount;
+            u32 compression;
+            u32 sizeImage;
+            i32 xPelsPerMeter;
+            i32 yPelsPerMeter;
+            u32 clrUsed;
+            u32 clrImportant;
         };
+#pragma pack(pop)
 
-        void                                Initialize();
-        void                                CreateProgram();
-        void                                CreateBuffer();
-
-        void                                Push(SpriteDrawEntry& drawEntry);
-        void                                PushQuad(const glm::vec2& pos, const glm::vec2& size, const glm::vec4& color);
-        void                                Draw(const glm::mat4& projection);
-
-        FixedList<SpriteDrawEntry, 1024>    entries;
-        Program                             program;
-        u32                                 totalSizeBytes = 0;
-        u32                                 vao = 0;
-        u32                                 vbo = 0;
+        static bool Write(byte* pixels, u32 width, u32 height, const char* name);
     };
 }
-
-

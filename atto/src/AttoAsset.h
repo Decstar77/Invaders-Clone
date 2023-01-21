@@ -3,21 +3,48 @@
 #include "AttoLib.h"
 #include "AttoLua.h"
 
+#include <wrl.h>
+namespace wrl = Microsoft::WRL;
+#include <d3d11_3.h>
+#include <dxgi1_2.h>
+#include <dxgidebug.h>
+#include <d3dcompiler.h>
+
+#include <xaudio2.h>
+#include <stb_truetype/stb_truetype.h>
+
+namespace glm
+{
+    struct basis {
+        vec3 right;
+        vec3 up;
+        vec3 forward;
+    };
+
+    inline basis toBasis(const glm::mat4& m) {
+        basis result;
+        result.right = glm::vec3(m[0][0], m[1][0], m[2][0]);
+        result.up = glm::vec3(m[0][1], m[1][1], m[2][1]);
+        result.forward = glm::vec3(m[0][2], m[1][2], m[2][2]);
+        
+        return result;
+    }
+}
+
 namespace atto
 {
     inline f32 Lerp(const f32 a, const f32 b, const f32 t) {
         return a + (b - a) * t;
     }
 
-    struct Ray2D {
-        glm::vec2 origin;
-        glm::vec2 direction;
-    };
+    inline glm::vec2 ClampLength(glm::vec2 v, f32 maxLength) {
+        f32 magSqrd = glm::dot(v, v);
+        if (magSqrd > maxLength * maxLength) {
+            return glm::normalize(v) * maxLength;
+        }
 
-    struct Circle {
-        glm::vec2   pos;
-        f32         rad;
-    };
+        return v;
+    }
 
     struct BoxBounds {
         glm::vec2 min;
@@ -34,59 +61,9 @@ namespace atto
         glm::vec2 point;
     };
 
-    class Bitmap {
-    public:
-#pragma pack(push, 1)
-        struct FileHeader {
-            char type[2];
-            u32 size;
-            u16 reserved1;
-            u16 reserved2;
-            u32 offset;
-        };
-
-        struct InfoHeader {
-            u32 size;
-            i32 width;
-            i32 height;
-            u16 planes;
-            u16 bitCount;
-            u32 compression;
-            u32 sizeImage;
-            i32 xPelsPerMeter;
-            i32 yPelsPerMeter;
-            u32 clrUsed;
-            u32 clrImportant;
-        };
-#pragma pack(pop)
-
-        static bool Write(byte* pixels, u32 width, u32 height, const char* name);
-    };
-
-    class TileSheetGenerator {
-    public:
-        struct Tile {
-            u32 width;
-            u32 height;
-            u32 xPos;
-            u32 yPos;
-            FixedList<byte, 2048> data;
-            glm::vec2 uv0;
-            glm::vec2 uv1;
-            glm::vec2 boundingUV0;
-            glm::vec2 boundingUV1;
-        };
-
-        void            AddTile(u32 width, u32 height, void* data);
-        void            GenerateTiles(List<byte>& pixels, i32& width, i32& height);
-        void            GetTileUV(i32 index, glm::vec2& uv0, glm::vec2& uv1);
-
-        List<Tile>      tiles;
-        u32             pixelStrideBytes = 4;
-    };
-
     enum AssetType {
         ASSET_TYPE_INVALID = 0,
+        ASSET_TYPE_MESH,
         ASSET_TYPE_TEXTURE,
         ASSET_TYPE_AUDIO,
         ASSET_TYPE_FONT,
@@ -134,35 +111,103 @@ namespace atto
 
         u32 id;
     };
-
+    
+    typedef TypedAssetId<ASSET_TYPE_MESH>    MeshAssetId;
     typedef TypedAssetId<ASSET_TYPE_TEXTURE> TextureAssetId;
     typedef TypedAssetId<ASSET_TYPE_AUDIO>   AudioAssetId;
     typedef TypedAssetId<ASSET_TYPE_FONT>    FontAssetId;
     
+    struct MeshData {
+        SmallString name;
+        List<glm::vec3> positions;
+        List<glm::vec3> normals;
+        List<glm::vec2> uvs;
+        List<u16> indices;
+    };
+
+    struct MeshAsset {
+        AssetId                         id;
+        bool                            isLoaded;
+        wrl::ComPtr<ID3D11Buffer>       vertexBuffer;
+        wrl::ComPtr<ID3D11Buffer>       indexBuffer;
+        u32                             vertexCount;
+        u32                             vertexStride;
+        u32                             indexCount;
+        LargeString                     path;
+
+        static MeshAsset CreateDefault() {
+            MeshAsset meshAsset = {};
+            return meshAsset;
+        }
+    };
+    
     struct TextureAsset {
-        u32         textureHandle;
-        i32         width;
-        i32         height;
-        i32         channels;
-        i32         wrapMode;
-        bool        generateMipMaps;
+        AssetId                                 id;
+        bool                                    isLoaded;
+        wrl::ComPtr<ID3D11Texture2D>            texture;
+        wrl::ComPtr<ID3D11ShaderResourceView>   srv;
+        i32                                     slot;
+        i32                                     width;
+        i32                                     height;
+        i32                                     channels;
+        bool                                    generateMipMaps;
+        LargeString                             path;
 
         static TextureAsset CreateDefault() {
             TextureAsset textureAsset = {};
-            textureAsset.wrapMode = 0x2901; // GL_REPEAT
-            textureAsset.generateMipMaps = true;
-
             return textureAsset;
         }
     };
 
+    enum ShaderInputLayout {
+        INPUT_LAYOUT_POSITION = 0,
+        INPUT_LAYOUT_BASIC_FONT,
+        INPUT_LAYOUT_POSITION_NORMAL_UV,
+    };
+
+    struct ShaderAsset {
+        AssetId                         id;
+        LargeString                     path;
+        ShaderInputLayout               layout;
+        wrl::ComPtr<ID3D11VertexShader> vertexShader;
+        wrl::ComPtr<ID3D11PixelShader>  pixelShader;
+        wrl::ComPtr<ID3D11InputLayout>  inputLayout;
+        
+        static ShaderAsset CreateDefault() {
+            ShaderAsset shaderAsset = {};
+            return shaderAsset;
+        }
+    };
+
+    template<typename _type_>
+    struct ShaderBuffer {
+        wrl::ComPtr<ID3D11Buffer> buffer;
+        i32                       slot;
+        _type_                    data;
+    };
+
+#define Float4Align __declspec(align(16))
+
+    struct ShaderBufferInstance {
+        Float4Align glm::mat4 mvp;
+        Float4Align glm::mat4 model;
+    };
+
+    struct ShaderBufferCamera {
+        Float4Align glm::mat4 projection;
+        Float4Align glm::mat4 view;
+        Float4Align glm::mat4 screenProjection;
+    };
+
     struct AudioAsset {
+        AssetId     id;
         u32         bufferHandle;
         i32         channels;
         i32         sampleRate;
         i32         sizeBytes;
         i32         bitDepth;
-
+        LargeString path;
+        
         static AudioAsset CreateDefault() {
             return {};
         }
@@ -179,74 +224,23 @@ namespace atto
         SPRITE_ORIGIN_COUNT
     };
 
-    struct SpriteAsset {
-        AssetId                 id;
-
-        // Texture stuffies
-        glm::vec2               uv0;
-        glm::vec2               uv1;
-        TextureAssetId          textureId;
-        const TextureAsset*     texture;
-
-        // Animation stuffies
-        bool                    animated;
-
-        glm::vec2               frameSize;
-        i32                     frameCount;
-        SpriteOrigin            origin;
-
-        inline static SpriteAsset CreateDefault() {
-            SpriteAsset spriteAsset = {};
-            spriteAsset.uv1 = glm::vec2(1, 1);
-            spriteAsset.frameCount = 1;
-            return spriteAsset;
-        }
-    };
-
-    struct Glyph {
-        glm::ivec2      size;       // Size of glyph
-        glm::ivec2      bearing;    // Offset from baseline to left/top of glyph
-        glm::vec2       uv0;        // Uv0
-        glm::vec2       uv1;        // Uv1
-        u32             advance;    // Horizontal offset to advance to next glyph
-    };
-
     struct FontAsset {
-        u32                     textureHandle;
-        i32                     width;
-        i32                     height;
-        
-        i32                     fontSize; // TODO: Think of a good way to set these things...
-        FixedList<Glyph, 128>   glyphs;
+        AssetId                                 id;
+        LargeString                             path;
+        stbtt_fontinfo                          info;
+        FixedList<stbtt_bakedchar, 96>          chardata;
+        i32                                     ascent;
+        i32                                     descent;
+        i32                                     lineGap;
+        i32                                     fontSize;
+        wrl::ComPtr<ID3D11Texture2D>            texture;
+        wrl::ComPtr<ID3D11ShaderResourceView>   srv;
 
         static FontAsset CreateDefault() {
             FontAsset fontAsset = {};
             fontAsset.fontSize = 38;
             return fontAsset;
         }
-    };
-
-    struct VertexBuffer {
-        u32 vao;
-        u32 vbo;
-        i32 size;
-        i32 stride;
-    };
-
-    struct VertexBufferIndexed {
-        u32 vao;
-        u32 vbo;
-        u32 ibo;
-    };
-
-    struct ShaderUniform {
-        SmallString name;
-        i32 location;
-    };
-
-    struct ShaderProgram {
-        u32                                 programHandle;
-        FixedList<ShaderUniform, 16>        uniforms;
     };
 
     class PackedAssetFile {
@@ -324,39 +318,107 @@ namespace atto
             GetData((byte*)data.GetData(), data.GetCount() * sizeof(_type_));
         }
     };
-    
-    struct EngineAsset {
-        AssetType               type = ASSET_TYPE_INVALID;
-        AssetId                 id = {};
-        LargeString             path = {};
 
-        union {
-            TextureAsset   texture;
-            FontAsset      font;
-            AudioAsset     audio;
-        };
+    struct DebugDrawVertex {
+        glm::vec4 positionColorIndex;
+    };
+
+    struct DebugDrawState {
+        i32 maxVertexCount;
+        wrl::ComPtr<ID3D11Buffer> vertexBuffer;
+        ShaderAsset shader;
     };
     
-    struct ShapeVertex {
-        glm::vec2 position;
+    struct SamplerStates {
+        wrl::ComPtr<ID3D11SamplerState> pointClamp;
+        wrl::ComPtr<ID3D11SamplerState> pointWrap;
+        wrl::ComPtr<ID3D11SamplerState> linearClamp;
+        wrl::ComPtr<ID3D11SamplerState> linearWrap;
+        wrl::ComPtr<ID3D11SamplerState> anisotropicClamp;
+        wrl::ComPtr<ID3D11SamplerState> anisotropicWrap;
     };
 
-    struct ShapeRenderingState {
-        glm::vec4           color;
-        ShaderProgram       program;
-        VertexBuffer        vertexBuffer;
+    struct DepthStates {
+        wrl::ComPtr<ID3D11DepthStencilState> depthDisabled;
+        wrl::ComPtr<ID3D11DepthStencilState> depthEnabled;
+        wrl::ComPtr<ID3D11DepthStencilState> depthEnabledNoWrite;
     };
 
-    struct SpriteVertex {
-        glm::vec2 position;
-        glm::vec2 uv;
-        glm::vec4 color;
+    struct RasterizerStates {
+        wrl::ComPtr<ID3D11RasterizerState> cullNone;
+        wrl::ComPtr<ID3D11RasterizerState> cullBack;
+        wrl::ComPtr<ID3D11RasterizerState> cullFront;
+        wrl::ComPtr<ID3D11RasterizerState> wireframe;
     };
 
-    struct SpriteRenderingState {
-        glm::vec4           color;
-        ShaderProgram       program;
-        VertexBuffer        vertexBuffer;
+    struct GlobalRenderer {
+        wrl::ComPtr<IDXGIFactory2>              factory;
+        wrl::ComPtr<ID3D11Device>               device;
+        wrl::ComPtr<ID3D11DeviceContext>        context;
+        wrl::ComPtr<IDXGISwapChain1>            swapChain;
+        wrl::ComPtr<ID3D11RenderTargetView>     swapChainRenderTarget;
+        wrl::ComPtr<ID3D11Texture2D>            swapChainDepthBuffer;
+        wrl::ComPtr<ID3D11DepthStencilView>     swapChainDepthView;
+        i32                                     swapChainWidth;
+        i32                                     swapChainHeight;
+        MeshAsset                               unitQuad;
+        MeshAsset                               unitCube;
+        ShaderAsset                             testingShader;
+        ShaderBuffer<ShaderBufferInstance>      shaderBufferInstance;
+        ShaderBuffer<ShaderBufferCamera>        shaderBufferCamera;
+        SamplerStates                           samplerStates;
+        DepthStates                             depthStates;
+        RasterizerStates                        rasterizerStates;
+        DebugDrawState                          debugDrawState;
+        ShaderAsset                             fontShader;
+        wrl::ComPtr<ID3D11Buffer>               fontVertexBuffer;
+    };
+
+    struct GlobalAudio {
+        wrl::ComPtr<IXAudio2>                  xAudio2;
+        IXAudio2MasteringVoice*               masteringVoice;
+    };
+
+    struct Camera {
+        glm::vec3   pos;
+        glm::basis  ori;
+        f32         fov;
+        f32         nearPlane;
+        f32         farPlane;
+        f32         pitch;
+        f32         yaw;
+        f32         zoom;
+
+        inline glm::mat4 GetViewMatrix() const {
+            return glm::lookAt(pos, pos + ori.forward, ori.up);
+        }
+
+        static Camera CreateDefault() {
+            Camera camera = {};
+            camera.pos.z = 3.0f;
+            camera.ori.right = glm::vec3(1.0f, 0.0f, 0.0f);
+            camera.ori.up = glm::vec3(0.0f, 1.0f, 0.0f);
+            camera.ori.forward = glm::vec3(0.0f, 0.0f, -1.0f);
+            camera.fov = glm::radians(45.0f);
+            camera.nearPlane = 0.1f;
+            camera.farPlane = 100.0f;
+            camera.pitch = 0.0f;
+            camera.yaw = -90.0f;
+            return camera;
+        }
+
+        static Camera CreateIsometric() {
+            Camera camera = {};
+            camera.pos = glm::vec3(5.0f);
+            camera.zoom = 1.0f;
+            camera.fov = glm::radians(45.0f);
+            glm::mat4 rot = glm::rotate(glm::mat4(1.0f), glm::radians(35.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+            rot = glm::rotate(rot, glm::radians(-45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            camera.ori = glm::toBasis(rot);
+            camera.nearPlane = 1.0f;
+            camera.farPlane = 100.0f;
+            return camera;
+        }
     };
 
     enum FontHAlignment {
@@ -396,48 +458,16 @@ namespace atto
         f32                 underlineThinkness;
         f32                 underlinePercent;
         glm::vec4           color;
-        ShaderProgram       program;
-        VertexBuffer        vertexBuffer;
+        //ShaderProgram       program;
+        //VertexBuffer        vertexBuffer;
     };
 
-    struct DebugLineVertex {
-        glm::vec2 position;
-        glm::vec4 color;
-    };
-
-    struct DebugRenderingState {
-        ShaderProgram                       program;
-        VertexBuffer                        vertexBufer;
-        FixedList<DebugLineVertex, 2048>    lines;
-        glm::vec4                           color;
-    };
-
-    enum VertexLayoutType {
-        VERTEX_LAYOUT_TYPE_SHAPE,           // Vec2(POS)
-        VERTEX_LAYOUT_TYPE_SPRITE,          // Vec2(POS), Vec2(UV), Vec4(COLOR)
-        VERTEX_LAYOUT_TYPE_FONT,            // Vec2(POS), Vec2(UV)
-        VERTEX_LAYOUT_TYPE_DEBUG_LINE,      // Vec2(POS), Vec4(COLOR)
-    };
-
-    struct GlobalRenderingState {
-        ShaderProgram *                     program;
-    };
-
-    struct SpriteInstance {
-        f32                     animationDuration;
-        f32                     animationPlayhead;
-    };
-
-    struct EditorState {
-        bool            consoleOpen;
-        f32             consoleScroll;
-    };
-    
-    struct EntitySprite {
-        bool            active;
-        SpriteAsset*    sprite;
-        f32             animationDuration;
-        f32             animationPlayhead;
+    struct Unit {
+        bool active;
+        bool isSelected;
+        bool hasTarget;
+        glm::vec2 target;
+        glm::vec2 steering;
     };
 
     struct Entity {
@@ -445,7 +475,7 @@ namespace atto
         glm::vec2       vel;
         f32             rotation;
         BoxBounds       boundingBox;
-        EntitySprite    sprite;
+        Unit            unit;
     };
 
     class LeEngine {
@@ -455,26 +485,34 @@ namespace atto
         void                                Render(AppState* app);
         void                                Shutdown();
         
-        void                                MouseWheelCallback(f32 x, f32 y);
+        void                                CallbackResize(i32 width, i32 height);
+        void                                CallbackMouseWheel(f32 x, f32 y);
+        void                                CallbackMousePosition(f32 x, f32 y);
 
         f32                                 Random();
         f32                                 Random(f32 min, f32 max);
         i32                                 RandomInt(i32 min, i32 max);
 
         glm::vec2                           ScreenPosToNDC(glm::vec2 pos);
+        glm::vec2                           ScreenToWorld(glm::vec2 pos);
         glm::vec2                           GetMousePosWorldSpace();
 
-        virtual void                        RegisterAssets() = 0;
+        void                                CameraSet(Camera& camera);
+        void                                CameraDoFreeFlyKeys(Camera &camera);
+        void                                CameraDoFreeFlyMouse(Camera& camera, f32 x, f32 y);
 
-        const void *                        LoadEngineAsset(AssetId id, AssetType type);
-        
+        void                                RegisterAssets();
+
+        MeshAsset*                          LoadMeshAsset(MeshAssetId id);
+        void                                FreeMeshAsset(MeshAssetId id);
+
         TextureAsset*                       LoadTextureAsset(TextureAssetId id);
         void                                FreeTextureAsset(TextureAssetId id);
 
         FontAsset*                          LoadFontAsset(FontAssetId id);
-        void                                FreeAudioAsset(AudioAssetId id);
 
         AudioAsset*                         LoadAudioAsset(AudioAssetId id);
+        void                                FreeAudioAsset(AudioAssetId id);
 
         Speaker                             AudioPlay(AudioAssetId audioAssetId, bool looping = false, f32 volume = 1.0f);
         void                                AudioPause(Speaker speaker);
@@ -482,155 +520,115 @@ namespace atto
         bool                                AudioIsSpeakerPlaying(Speaker speaker);
         bool                                AudioIsSpeakerAlive(Speaker speaker);
 
-        SpriteAsset*                        GetSpriteAsset(AssetId id);
-
-        void                                ShaderProgramBind(ShaderProgram* program);
-        i32                                 ShaderProgramGetUniformLocation(const char* name);
-        void                                ShaderProgramSetInt(const char* name, i32 value);
-        void                                ShaderProgramSetSampler(const char* name, i32 value);
-        void                                ShaderProgramSetTexture(i32 location, u32 textureHandle);
-        void                                ShaderProgramSetFloat(const char* name, f32 value);
-        void                                ShaderProgramSetVec2(const char* name, glm::vec2 value);
-        void                                ShaderProgramSetVec3(const char* name, glm::vec3 value);
-        void                                ShaderProgramSetVec4(const char* name, glm::vec4 value);
-        void                                ShaderProgramSetMat3(const char* name, glm::mat3 value);
-        void                                ShaderProgramSetMat4(const char* name, glm::mat4 value);
-
-        void                                VertexBufferUpdate(VertexBuffer vertexBuffer, i32 offset, i32 size, const void* data);
-
-        void                                DrawSurfaceResized(i32 w, i32 h);
-
-        void                                DrawClearSurface(const glm::vec4& color = glm::vec4(0, 0, 0, 1));
-        void                                DrawEnableAlphaBlending();
-        
-        void                                DrawShapeSetColor(glm::vec4 color);
-        void                                DrawShapeRect(glm::vec2 bl, glm::vec2 tr);
-        void                                DrawShapeRectCenterDim(glm::vec2 center, glm::vec2 dim);
-        void                                DrawShapeCircle(glm::vec2 center, f32 radius);
-        void                                DrawShapeRoundRect(glm::vec2 bl, glm::vec2 tr, f32 radius = 10.0f);
-
-        void                                DrawSpriteSetColor(glm::vec4 color);
-        void                                DrawSprite(const AssetId& id, glm::vec2 pos, f32 rotation, i32 frameIndex);
-        void                                DrawSprite(SpriteAsset* spriteAsset, glm::vec2 pos, f32 rotation, i32 frameIndex);
-
-        void                                DrawTextSetFont(FontAssetId id);
-        void                                DrawTextSetColor(glm::vec4 color);
-        void                                DrawTextSetHalign(FontHAlignment hAlignment);
-        void                                DrawTextSetValign(FontVAlignment vAlignment);
-        f32                                 DrawTextWidth(const char* text);
-        BoxBounds                           DrawTextBounds(const char* text);
-        f32                                 DrawTextWidth(FontAsset* font, const char* text);
-        BoxBounds                           DrawTextBounds(FontAsset *font, const char* text);
-        DrawEntryFont                       DrawTextCreate(const char* text, glm::vec2 pos);
-        void                                DrawText(const char* text, glm::vec2 pos);
-        void                                DrawText(SmallString text, glm::vec2 pos);
-
-        void                                DEBUGPushLine(glm::vec2 a, glm::vec2 b);
-        void                                DEBUGPushRay(Ray2D ray);
-        void                                DEBUGPushCircle(glm::vec2 pos, f32 radius);
-        void                                DEBUGPushCircle(Circle circle);
-        void                                DEBUGPushBox(BoxBounds bounds);
-        void                                DEBUGSubmit();
-
-        void                                EditorToggleConsole();
-
         glm::mat4                           cameraProjection;
-        glm::mat4                           cameraView;
         glm::mat4                           screenProjection;
 
-        glm::vec2                           cameraPos;
-        f32                                 cameraZoom;
-
-        i32                                 mainSurfaceWidth;
-        i32                                 mainSurfaceHeight;
-
-    protected:
-        virtual bool                        LoadTextureAsset(const char* name, TextureAsset& textureAsset) = 0;
-        virtual bool                        LoadAudioAsset(const char* name, AudioAsset& audioAsset) = 0;
-        virtual bool                        LoadFontAsset(const char* name, FontAsset& fontAsset) = 0;
-
-        void                                InitializeShapeRendering();
-        void                                InitializeSpriteRendering();
-        void                                InitializeTextRendering();
-        void                                InitializeDebugRendering();
-        void                                InitializeLuaBindings();
-
-        VertexBuffer                        SubmitVertexBuffer(i32 sizeBytes, const void* data, VertexLayoutType layoutType, bool dyanmic);
-        ShaderProgram                       SubmitShaderProgram(const char* vertexSource, const char* fragmentSource);
-        u32                                 SubmitTextureR8B8G8A8(i32 width, i32 height, byte* data, i32 wrapMode, bool generateMipMaps);
-        u32                                 SubmitAudioClip(i32 sizeBytes, byte* data, i32 channels, i32 bitDepth, i32 sampleRate);
+        LargeString                         basePathSprites;
         
-        void                                ALCheckErrors();
-        u32                                 ALGetFormat(u32 numChannels, u32 bitDepth);
-        bool                                GLCheckShaderCompilationErrors(u32 shader);
-        bool                                GLCheckShaderLinkErrors(u32 program);
+    private:
+        bool                                InitializeRenderer();
+        bool                                InitializeFonts();
+        bool                                InitializeAudio();
+
+        byte*                               LoadEntireFile(const char *path, i32 &fileSize);
+
+        void                                ShaderGetInputLayout(ShaderInputLayout layout, FixedList<D3D11_INPUT_ELEMENT_DESC, 8> & list);
+        ID3DBlob*                           ShaderCompileFile(const char* path, const char* entry, const char* target);
+        ID3DBlob*                           ShaderCompileSource(const char* source, const char* entry, const char* target);
+        bool                                ShaderCompile(ShaderAsset& shader);
+        bool                                ShaderCompile(const char *source, ShaderInputLayout layout, ShaderAsset& shader);
+        
+        template<typename _type_> void      ShaderBufferBind(ShaderBuffer<_type_>& shaderBuffer, i32 slot, bool vertexShader, bool pixelShader);
+        template<typename _type_> void      ShaderBufferUpload(ShaderBuffer<_type_>& shaderBuffer);
+        template<typename _type_> void      ShaderBufferCreate(ShaderBuffer<_type_>& shaderBuffer);
+
+        void                                MeshCreateUnitQuad(MeshAsset& quad);
+        void                                MeshCreateUnitCube(MeshAsset& cube);
+        void                                MeshDataPackPNT(const MeshData &meshData, const glm::mat3 &scalingMatrix, List<f32> &data);
+        void                                MeshCreate(MeshAsset& mesh);
+        void                                MeshBind(MeshAsset* mesh);
+        void                                MeshDraw(MeshAsset* mesh);
+
+        void                                TextureCreate(TextureAsset& texture);
+        void                                TextureBind(TextureAsset* texture, i32 slot);
+        
+        void                                FontCreate(FontAsset& font);
+        void                                FontRenderText(const char *text, FontAssetId fontId, glm::vec2 pos, glm::vec4 color);
+
+        void                                AudioCreate(AudioAsset& audio);
+
+        template<typename _type_> _type_*   FindAsset(FixedList<_type_, 2048> & assetList, AssetId id);
 
         AppState*                           app;
 
-        LuaScript                           luaEngine;
+        GlobalRenderer                      renderer;
+        GlobalAudio                         audio;
 
+        Camera                              gameCamera;
+        Camera                              editorCamera;
+        Camera*                             currentCamera;
 
-        LargeString                         basePathSprites;
-        LargeString                         basePathSounds;
+        MeshAsset*                          primitiveCapsule;
+        MeshAsset*                          buildingBlock1x1_01;
+        MeshAsset*                          buildingBlock1x1_02;
+        MeshAsset*                          buildingBlock1x1_03;
+        TextureAsset*                       textureGrid_01;
+        TextureAsset*                       textureTriplanarTest;
 
-        GlobalRenderingState                globalRenderingState;
-        ShapeRenderingState                 shapeRenderingState;
-        SpriteRenderingState                spriteRenderingState;
-        TextRenderingState                  textRenderingState;
-        DebugRenderingState                 debugRenderingState;
-        EditorState                         editorState;
-
-        FixedList<EngineAsset, 2048>        engineAssets;      // These never get moved, so it's safe to store a pointer to them.
-        FixedList<SpriteAsset, 2048>        registeredSprites; // These never get moved, so it's safe to store a pointer to them.
+        FixedList<MeshAsset,    2048>       meshAssets;
+        FixedList<TextureAsset, 2048>       textureAssets;
+        FixedList<FontAsset,    2048>       fontAssets;
+        FixedList<AudioAsset,   2048>       audioAssets;
 
         FixedList<Speaker,       64>        speakers;
         FixedList<Entity,      2048>        entities;
-
-    private:
-        
-        static i32 Lua_IdFromString(lua_State* L);
-        
-        static i32 Lua_AudioPlay(lua_State* L);
-        
-        static i32 Lua_DrawShapeSetColor(lua_State *L);
-        static i32 Lua_DrawShapeRect(lua_State *L);
-        static i32 Lua_DrawShapeRectCenterDim(lua_State *L);
-        static i32 Lua_DrawShapeCircle(lua_State *L);
-        static i32 Lua_DrawShapeRoundRect(lua_State* L);
-
-        static i32 Lua_DrawSprite(lua_State* L);
-
     };
 
-    class LooseAssetLoader : public LeEngine {
-    public:
-        virtual void                RegisterAssets() override;
+    template<typename _type_>
+    void LeEngine::ShaderBufferBind(ShaderBuffer<_type_>& shader, i32 slot, bool vertexShader, bool pixelShader) {
+        shader.slot = slot;
+        if (vertexShader) {
+            renderer.context->VSSetConstantBuffers(slot, 1, shader.buffer.GetAddressOf());
+        }
+        if (pixelShader) {
+            renderer.context->PSSetConstantBuffers(slot, 1, shader.buffer.GetAddressOf());
+        }
+    }
 
-    protected:
-        virtual bool                LoadTextureAsset(const char* name, TextureAsset& textureAsset) override;
-        virtual bool                LoadAudioAsset(const char* name, AudioAsset& audioAsset) override;
-        virtual bool                LoadFontAsset(const char* name, FontAsset& fontAsset) override;
+    template<typename _type_>
+    void LeEngine::ShaderBufferUpload(ShaderBuffer<_type_>& shaderBuffer) {
+        renderer.context->UpdateSubresource(shaderBuffer.buffer.Get(), 0, nullptr, &shaderBuffer.data, 0, 0);
+    }
 
-    private:
-        bool                        LoadWAV(const char* filename, AudioAsset& audioAsset);
-        bool                        LoadOGG(const char* filename, AudioAsset& audioAsset);
+    template<typename _type_>
+    void LeEngine::ShaderBufferCreate(ShaderBuffer<_type_>& shaderBuffer) {
+        u32 sizeBytes = sizeof(_type_);
+        D3D11_BUFFER_DESC desc = {};
+        desc.ByteWidth = sizeBytes;
+        desc.Usage = D3D11_USAGE_DEFAULT;
+        desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+        desc.CPUAccessFlags = 0;
+        desc.MiscFlags = 0;
+        
+        HRESULT hr = renderer.device->CreateBuffer(&desc, nullptr, &shaderBuffer.buffer);
+        if (FAILED(hr)) {
+            ATTOERROR("Failed to create constant buffer");
+        }
+    }
 
-        PackedAssetFile             texturePakFile;
-        PackedAssetFile             audioPakFile;
-        PackedAssetFile             fontPakFile;
-    };
+    template<typename _type_>
+    _type_* LeEngine::FindAsset(FixedList<_type_, 2048> & assetList, AssetId id) {
+        const i32 assetListCount = assetList.GetCount();
+        for (i32 assetIndex = 0; assetIndex < assetListCount; assetIndex++) {
+            _type_* asset = &assetList[assetIndex];
+            if (asset->id == id) {
+                return asset;
+            }
+        }
+        
+        ATTOERROR("Could not find asset with id %d", id.id);
 
-    //class PackedAssetLoader : public AssetLoader {
-    //    virtual bool                Begin() override;
-    //    virtual bool                LoadTextureAsset(const char* name, TextureAsset& textureAsset) override;
-    //    virtual bool                LoadAudioAsset(const char* name, AudioAsset& audioAsset) override;
-    //    virtual bool                LoadFontAsset(const char* name, FontAsset& fontAsset) override;
-    //    virtual void                End() override;
-
-    //private:
-    //    PackedAssetFile             texturePakFile;
-    //    PackedAssetFile             audioPakFile;
-    //    PackedAssetFile             fontPakFile;
-    //};
+        return nullptr;
+    }
 
 }

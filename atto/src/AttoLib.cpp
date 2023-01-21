@@ -2,20 +2,13 @@
 
 #include "AttoAsset.h"
 
-#include <glad/glad.h>
 #include <GLFW/glfw3.h>
-
-#include <al/alc.h>
-#include <al/al.h>
 
 #include <iostream>
 #include <string>
 #include <stdarg.h> 
 
 #include "AttoAsset.h"
-
-#include "Pong.h"
-#include "PhysicsSim.h"
 
 namespace atto
 {
@@ -66,47 +59,6 @@ namespace atto
         }
     }
 
-    static void APIENTRY glDebugOutput(GLenum source, GLenum type, unsigned int id, GLenum severity, GLsizei length, const char* message, const void* userParam)     {
-        if (id == 131169 || id == 131185 || id == 131218 || id == 131204) {
-            return;
-        }
-
-        std::cout << "---------------" << std::endl;
-        std::cout << "Debug message (" << id << "): " << message << std::endl;
-
-        switch (source)
-        {
-        case GL_DEBUG_SOURCE_API:             std::cout << "Source: API"; break;
-        case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   std::cout << "Source: Window System"; break;
-        case GL_DEBUG_SOURCE_SHADER_COMPILER: std::cout << "Source: Shader Compiler"; break;
-        case GL_DEBUG_SOURCE_THIRD_PARTY:     std::cout << "Source: Third Party"; break;
-        case GL_DEBUG_SOURCE_APPLICATION:     std::cout << "Source: Application"; break;
-        case GL_DEBUG_SOURCE_OTHER:           std::cout << "Source: Other"; break;
-        } std::cout << std::endl;
-
-        switch (type)
-        {
-        case GL_DEBUG_TYPE_ERROR:               std::cout << "Type: Error"; break;
-        case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: std::cout << "Type: Deprecated Behavior"; break;
-        case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  std::cout << "Type: Undefined Behavior"; break;
-        case GL_DEBUG_TYPE_PORTABILITY:         std::cout << "Type: Portability"; break;
-        case GL_DEBUG_TYPE_PERFORMANCE:         std::cout << "Type: Performance"; break;
-        case GL_DEBUG_TYPE_MARKER:              std::cout << "Type: Marker"; break;
-        case GL_DEBUG_TYPE_PUSH_GROUP:          std::cout << "Type: Push Group"; break;
-        case GL_DEBUG_TYPE_POP_GROUP:           std::cout << "Type: Pop Group"; break;
-        case GL_DEBUG_TYPE_OTHER:               std::cout << "Type: Other"; break;
-        } std::cout << std::endl;
-
-        switch (severity)
-        {
-        case GL_DEBUG_SEVERITY_HIGH:         std::cout << "Severity: high"; break;
-        case GL_DEBUG_SEVERITY_MEDIUM:       std::cout << "Severity: medium"; break;
-        case GL_DEBUG_SEVERITY_LOW:          std::cout << "Severity: low"; break;
-        case GL_DEBUG_SEVERITY_NOTIFICATION: std::cout << "Severity: notification"; break;
-        } std::cout << std::endl;
-        std::cout << std::endl;
-    }
-
     static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
         AppState* app = (AppState* )glfwGetWindowUserPointer(window);
         FrameInput* input = app->input;
@@ -125,16 +77,43 @@ namespace atto
         }
     }
 
-    static void MousePositionCallBack(GLFWwindow* window, double xpos, double ypos) {
+    static bool isFirstMouse = true;
+    static void MousePositionCallback(GLFWwindow* window, double xpos, double ypos) {
+        AppState* app = (AppState*)glfwGetWindowUserPointer(window);
+        FrameInput* input = app->input;
+        if (isFirstMouse) {
+            input->lastMousePosPixels.x = (f32)xpos;
+            input->lastMousePosPixels.y = (f32)ypos;
+            isFirstMouse = false;
+        }
+        
+        f32 dx = (f32)xpos - input->lastMousePosPixels.x;
+        f32 dy = input->lastMousePosPixels.y - (f32)ypos;
+        
+        input->mousePosPixels = glm::vec2((f32)xpos, (f32)ypos);
+
+        app->engine->CallbackMousePosition(dx, dy);
+        
+        input->lastMousePosPixels = input->mousePosPixels;
+    }
+
+    static void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
         AppState* app = (AppState*)glfwGetWindowUserPointer(window);
         FrameInput* input = app->input;
 
-        input->mousePosPixels = glm::vec2((f32)xpos, (f32)ypos);
+        if (action == GLFW_PRESS) {
+            input->lastMouseButtons[button] = false;
+            input->mouseButtons[button] = true;
+        }
+        else if (action == GLFW_RELEASE) {
+            input->lastMouseButtons[button] = true;
+            input->mouseButtons[button] = false;
+        }
     }
 
     static void ScrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
         AppState* app = (AppState*)glfwGetWindowUserPointer(window);
-        app->engine->MouseWheelCallback((f32)xoffset, (f32)yoffset);
+        app->engine->CallbackMouseWheel((f32)xoffset, (f32)yoffset);
     }
 
     static void FramebufferCallback(GLFWwindow* window, i32 w, i32 h) {
@@ -143,7 +122,7 @@ namespace atto
         app->windowHeight = h;
         app->windowAspect = (f32)w / (f32)h;
         if (app->engine) {
-            app->engine->DrawSurfaceResized(w, h);
+            app->engine->CallbackResize(w, h);
         }
     }
 
@@ -163,7 +142,7 @@ namespace atto
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
 #endif
 
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         //glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
         glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_FALSE);
         //glfwWindowHint(GLFW_SAMPLES, 4);
@@ -191,70 +170,24 @@ namespace atto
             const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
             glfwSetWindowPos(app.window, (mode->width - app.windowWidth) / 2, (mode->height - app.windowHeight) / 2);
         }
-        //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+        glfwSetInputMode(app.window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-        glfwSetCursorPosCallback(app.window, MousePositionCallBack);
+        glfwSetCursorPosCallback(app.window, MousePositionCallback);
         glfwSetKeyCallback(app.window, KeyCallback);
-        //glfwSetMouseButtonCallback(window, MouseButtonCallBack);
+        glfwSetMouseButtonCallback(app.window, MouseButtonCallback);
         glfwSetScrollCallback(app.window, ScrollCallback);
         glfwSetFramebufferSizeCallback(app.window, FramebufferCallback);
 
-        // Initialize GLAD
-        gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
-
-#if ATTO_DEBUG_RENDERING
-        glEnable(GL_DEBUG_OUTPUT);
-        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-        glDebugMessageCallback(glDebugOutput, nullptr);
-        glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
-#endif
-
-        const byte* glVendor = glGetString(GL_VENDOR);
-        const byte* glRenderer = glGetString(GL_RENDERER);
-
-        ATTOINFO("GL Vendor %s", glVendor);
-        ATTOINFO("GL Renderer %s", glRenderer);
-
-        app.alDevice = alcOpenDevice(nullptr);
-        if (app.alDevice == nullptr) {
-            ATTOFATAL("Could not open OpenAL device")
-            return false;
-        }
-
-        app.alContext = alcCreateContext(app.alDevice, nullptr);
-        if (app.alContext == nullptr) {
-            alcCloseDevice(app.alDevice);
-            ATTOFATAL("Could not create OpenAL context");
-            return false;
-        }
-
-        if (!alcMakeContextCurrent(app.alContext)) {
-            ATTOFATAL("Could not make OpenAL context current");
-            return false;
-        }
-
-        if (app.useLooseAssets) {
-            ATTOTRACE("Using raw assets");
-            app.engine = new LooseAssetLoader();
-            app.engine->Initialize(&app);
-        }
-        else {
-            ATTOTRACE("Using packed assets");
-            Assert(0, "ddd");
-        }
-
-        //app.gameState = new Pong();
-        //app.gameState = new PhysicsSim();
-        //app.gameState->Initialize(&app);
+        app.engine = new LeEngine();
+        app.engine->Initialize(&app);
 
         return true;
     }
 
     void Application::DestroyApp(AppState &app) {
         app.engine->Shutdown();
-        alcMakeContextCurrent(nullptr);
-        alcDestroyContext(app.alContext);
-        alcCloseDevice(app.alDevice);
+        delete app.engine;
         glfwDestroyWindow(app.window);
         glfwTerminate();
     }
