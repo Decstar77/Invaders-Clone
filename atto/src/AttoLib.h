@@ -83,7 +83,10 @@ namespace atto
         static bool     AppIsRunning(AppState& window);
         static void     PresentApp(AppState& window);
         static void     UpdateApp(AppState& app);
-        
+
+        static void     DisableMouse(AppState& app);
+        static void     EnableMouse(AppState& app);
+
         static void     ConsoleWrite(const char *output, u8 level);
         static void     DisplayFatalError(const char* output);
     };

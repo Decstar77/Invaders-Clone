@@ -128,6 +128,9 @@ namespace atto {
             pointWrap.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
             pointWrap.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
             pointWrap.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+            pointWrap.MipLODBias = 0;
+            pointWrap.MinLOD = 0;
+            pointWrap.MaxLOD = D3D11_FLOAT32_MAX;
 
             HRESULT hr = renderer.device->CreateSamplerState(&pointWrap, &renderer.samplerStates.pointWrap);
             if (FAILED(hr)) {
@@ -140,7 +143,10 @@ namespace atto {
             pointClamp.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
             pointClamp.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
             pointClamp.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-            
+            pointClamp.MipLODBias = 0;
+            pointClamp.MinLOD = 0;
+            pointClamp.MaxLOD = D3D11_FLOAT32_MAX;
+
             hr = renderer.device->CreateSamplerState(&pointClamp, &renderer.samplerStates.pointClamp);
             if (FAILED(hr)) {
                 ATTOFATAL("DX11: Unable to create sampler state");
@@ -152,6 +158,9 @@ namespace atto {
             linearWrap.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
             linearWrap.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
             linearWrap.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+            linearWrap.MipLODBias = 0;
+            linearWrap.MinLOD = 0;
+            linearWrap.MaxLOD = D3D11_FLOAT32_MAX;
             
             hr = renderer.device->CreateSamplerState(&linearWrap, &renderer.samplerStates.linearWrap);
             if (FAILED(hr)) {
@@ -164,6 +173,9 @@ namespace atto {
             linearClamp.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
             linearClamp.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
             linearClamp.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+            linearClamp.MipLODBias = 0;
+            linearClamp.MinLOD = 0;
+            linearClamp.MaxLOD = D3D11_FLOAT32_MAX;
             
             hr = renderer.device->CreateSamplerState(&linearClamp, &renderer.samplerStates.linearClamp);
             if (FAILED(hr)) {
@@ -356,6 +368,9 @@ namespace atto {
                 return output;
             }
 
+            cbuffer Material : register(b0) {
+            }
+
             SamplerState pointWrap : register(s0);
             SamplerState pointClamp : register(s1);
             SamplerState linearWrap : register(s2);
@@ -389,11 +404,11 @@ namespace atto {
             }
 
             float4 PSMain(VS_OUTPUT input) : SV_TARGET {
-                //float3 nrm = normalize(input.worldNrm);
-                //return TriplanarSampling(input.worldPos, nrm, 1);
+                float3 nrm = normalize(input.worldNrm);
+                return TriplanarSampling(input.worldPos, nrm, 1);
                 //return float4(nrm * 2 - float3(1,1,1), 1);
-                float4 diffuse = diffuseTexture.Sample(linearWrap, input.uv);
-                return diffuse;
+                //float4 diffuse = diffuseTexture.Sample(linearWrap, input.uv);
+                //return diffuse;
                 //return float4(input.uv, 0, 1);
             }
         )";
@@ -405,58 +420,6 @@ namespace atto {
         ShaderBufferCreate(renderer.shaderBufferInstance);
         ShaderBufferCreate(renderer.shaderBufferCamera);
 
-#if ATTO_DEBUG_RENDERING
-        renderer.debugDrawState.maxVertexCount= 1000;
-        // Create vertex buffer
-        {
-            D3D11_BUFFER_DESC bufferDesc = {};
-            bufferDesc.ByteWidth = sizeof(DebugDrawVertex) * renderer.debugDrawState.maxVertexCount;
-            bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
-            bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-            bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-            bufferDesc.MiscFlags = 0;
-            bufferDesc.StructureByteStride = 0;
-
-            HRESULT hr = renderer.device->CreateBuffer(&bufferDesc, nullptr, &renderer.debugDrawState.vertexBuffer);
-            if (FAILED(hr)) {
-                ATTOFATAL("DX11: Unable to create vertex buffer");
-                return false;
-            }
-        }
-
-        const char* debugDrawShaderSource = R"(
-            cbuffer CameraData : register(b1) {
-                matrix persp;
-                matrix view;
-                matrix screenProjection;
-            };
-
-            struct VS_INPUT {
-                float4 position : POSITION;
-            };
-
-            struct VS_OUTPUT {
-                float4 position : SV_POSITION;
-                float4 color    : COLOR;
-            };
-
-            VS_OUTPUT VSMain(VS_INPUT input) {
-                VS_OUTPUT output;
-                float4 p = float4(input.position.xyz, 1);
-                output.position = mul(persp, mul(view, p));
-                output.color = float4(0, 1, 0, 1);
-                return output;
-            }
-
-            float4 PSMain(VS_OUTPUT input) : SV_TARGET {
-                return input.color;
-            }
-        )";
-
-        ShaderCompile(debugDrawShaderSource, INPUT_LAYOUT_POSITION, renderer.debugDrawState.shader);
-
-#endif
-
         ATTOTRACE("Initalized DX11");
 
         return true;
@@ -465,7 +428,7 @@ namespace atto {
     void LeEngine::ShaderGetInputLayout(ShaderInputLayout layout, FixedList<D3D11_INPUT_ELEMENT_DESC, 8>& list) {
         switch (layout)
         {
-        case atto::INPUT_LAYOUT_POSITION:
+        case atto::INPUT_LAYOUT_DEBUG_LINE:
         {
             D3D11_INPUT_ELEMENT_DESC pos = {};
             pos.SemanticName = "Position";
@@ -883,39 +846,76 @@ namespace atto {
             ATTOERROR("Could not load texture: %s", texture.path.GetCStr());
             return;
         }
-        
-        D3D11_TEXTURE2D_DESC textureDesc = {};
-        textureDesc.Width = texture.width;
-        textureDesc.Height = texture.height;
-        textureDesc.MipLevels = 1;
-        textureDesc.ArraySize = 1;
-        textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        textureDesc.SampleDesc.Count = 1;
-        textureDesc.SampleDesc.Quality = 0;
-        textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
-        textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-        textureDesc.CPUAccessFlags = 0;
-        textureDesc.MiscFlags = 0;
 
-        D3D11_SUBRESOURCE_DATA textureData = {};
-        textureData.pSysMem = pixelData;
-        textureData.SysMemPitch = texture.width * 4;
-        textureData.SysMemSlicePitch = 0;
-        
-        if (FAILED(renderer.device->CreateTexture2D(&textureDesc, &textureData, &texture.texture))) {
-            ATTOERROR("Could not create texture: %s", texture.path.GetCStr());
-            return;
+        bool generateMipMaps = true;
+        if (generateMipMaps == false) {
+            D3D11_TEXTURE2D_DESC textureDesc = {};
+            textureDesc.Width = texture.width;
+            textureDesc.Height = texture.height;
+            textureDesc.MipLevels = 1;
+            textureDesc.ArraySize = 1;
+            textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            textureDesc.SampleDesc.Count = 1;
+            textureDesc.SampleDesc.Quality = 0;
+            textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
+            textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+            textureDesc.CPUAccessFlags = 0;
+            textureDesc.MiscFlags = 0;
+
+            D3D11_SUBRESOURCE_DATA textureData = {};
+            textureData.pSysMem = pixelData;
+            textureData.SysMemPitch = texture.width * 4;
+            textureData.SysMemSlicePitch = 0;
+
+            if (FAILED(renderer.device->CreateTexture2D(&textureDesc, &textureData, &texture.texture))) {
+                ATTOERROR("Could not create texture: %s", texture.path.GetCStr());
+                return;
+            }
+
+            D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc = {};
+            shaderResourceViewDesc.Format = textureDesc.Format;
+            shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+            shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
+            shaderResourceViewDesc.Texture2D.MipLevels = 1;
+
+            if (FAILED(renderer.device->CreateShaderResourceView(texture.texture.Get(), &shaderResourceViewDesc, &texture.srv))) {
+                ATTOERROR("Could not create shader resource view: %s", texture.path.GetCStr());
+                return;
+            }
+
         }
+        else {
+            D3D11_TEXTURE2D_DESC textureDesc = {};
+            textureDesc.Width = texture.width;
+            textureDesc.Height = texture.height;
+            textureDesc.MipLevels = 0;
+            textureDesc.ArraySize = 1;
+            textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            textureDesc.SampleDesc.Count = 1;
+            textureDesc.SampleDesc.Quality = 0;
+            textureDesc.Usage = D3D11_USAGE_DEFAULT;
+            textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+            textureDesc.CPUAccessFlags = 0;
+            textureDesc.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
 
-        D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc = {};
-        shaderResourceViewDesc.Format = textureDesc.Format;
-        shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-        shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
-        shaderResourceViewDesc.Texture2D.MipLevels = 1;
-        
-        if (FAILED(renderer.device->CreateShaderResourceView(texture.texture.Get(), &shaderResourceViewDesc, &texture.srv))) {
-            ATTOERROR("Could not create shader resource view: %s", texture.path.GetCStr());
-            return;
+            if (FAILED(renderer.device->CreateTexture2D(&textureDesc, nullptr, &texture.texture))) {
+                ATTOERROR("Could not create texture: %s", texture.path.GetCStr());
+                return;
+            }
+
+            D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc = {};
+            shaderResourceViewDesc.Format = textureDesc.Format;
+            shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+            shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
+            shaderResourceViewDesc.Texture2D.MipLevels = -1;
+
+            if (FAILED(renderer.device->CreateShaderResourceView(texture.texture.Get(), &shaderResourceViewDesc, &texture.srv))) {
+                ATTOERROR("Could not create shader resource view: %s", texture.path.GetCStr());
+                return;
+            }
+
+            renderer.context->UpdateSubresource(texture.texture.Get(), 0, nullptr, pixelData, texture.width * 4, 0);
+            renderer.context->GenerateMips(texture.srv.Get());
         }
 
         texture.isLoaded = true;

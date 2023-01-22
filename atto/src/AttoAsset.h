@@ -29,6 +29,32 @@ namespace glm
         
         return result;
     }
+
+    inline glm::mat4 toMat4(const basis& b) {
+        glm::mat4 result;
+
+        result[0][0] = b.right.x;
+        result[1][0] = b.right.y;
+        result[2][0] = b.right.z;
+        result[3][0] = 0;
+
+        result[0][1] = b.up.x;
+        result[1][1] = b.up.y;
+        result[2][1] = b.up.z;
+        result[3][1] = 0;
+
+        result[0][2] = b.forward.x;
+        result[1][2] = b.forward.y;
+        result[2][2] = b.forward.z;
+        result[3][2] = 0;
+
+        result[0][3] = 0;
+        result[1][3] = 0;
+        result[2][3] = 0;
+        result[3][3] = 1;
+
+        return result;
+    }
 }
 
 namespace atto
@@ -46,6 +72,10 @@ namespace atto
         return v;
     }
 
+    inline f32 ApproxEqual(f32 a, f32 b, f32 epsilon = 0.0001f) {
+        return std::fabs(a - b) < epsilon;
+    }
+    
     struct BoxBounds {
         glm::vec2 min;
         glm::vec2 max;
@@ -160,7 +190,7 @@ namespace atto
     };
 
     enum ShaderInputLayout {
-        INPUT_LAYOUT_POSITION = 0,
+        INPUT_LAYOUT_DEBUG_LINE = 0,
         INPUT_LAYOUT_BASIC_FONT,
         INPUT_LAYOUT_POSITION_NORMAL_UV,
     };
@@ -325,9 +355,9 @@ namespace atto
     };
 
     struct DebugDrawState {
-        i32 maxVertexCount;
-        wrl::ComPtr<ID3D11Buffer> vertexBuffer;
-        ShaderAsset shader;
+        FixedList<DebugDrawVertex, 1000>        lineVertices;
+        wrl::ComPtr<ID3D11Buffer>               vertexBuffer;
+        ShaderAsset                             shader;
     };
     
     struct SamplerStates {
@@ -417,12 +447,18 @@ namespace atto
 
         static Camera CreateIsometric() {
             Camera camera = {};
-            camera.pos = glm::vec3(5.0f);
+            camera.pos = glm::vec3(7, 14, 7) * 0.5f;
             camera.zoom = 1.0f;
             camera.fov = glm::radians(45.0f);
-            glm::mat4 rot = glm::rotate(glm::mat4(1.0f), glm::radians(35.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-            rot = glm::rotate(rot, glm::radians(-45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            camera.ori.right = glm::vec3(1.0f, 0.0f, 0.0f);
+            camera.ori.up = glm::vec3(0.0f, 1.0f, 0.0f);
+            camera.ori.forward = glm::vec3(0.0f, 0.0f, -1.0f);
+            glm::mat4 rot = glm::lookAt(camera.pos, glm::vec3(0,0,0), glm::vec3(0, 1, 0));
+            
+            //glm::mat4 rot = glm::rotate(glm::toMat4(camera.ori), glm::radians(35.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+            //rot = glm::rotate(rot, glm::radians(-45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
             camera.ori = glm::toBasis(rot);
+            camera.ori.forward = -camera.ori.forward;
             camera.nearPlane = 1.0f;
             camera.farPlane = 100.0f;
             return camera;
@@ -470,18 +506,57 @@ namespace atto
         //VertexBuffer        vertexBuffer;
     };
 
+    struct Ray {
+        glm::vec3 origin;
+        glm::vec3 direction;
+
+        inline glm::vec3 Travel(f32 t) const {
+            return origin + direction * t;
+        }
+    };
+    
+    struct Plane {
+        glm::vec3 normal;
+        f32 d;
+
+        inline static Plane Create(glm::vec3 point, glm::vec3 normal) {
+            Plane plane = {};
+            plane.normal = normal;
+            plane.d = glm::dot(normal, point);
+            return plane;
+        }
+    };
+
+    class RayTests {
+    public:
+        static bool RayPlaneIntersection(const Ray& ray, const Plane& plane, f32& t) {
+            f32 denom = std::abs( glm::dot(plane.normal, ray.direction) );
+            if ( !ApproxEqual(denom, 0.0) ) {
+                glm::vec3 p0l0 = ray.origin;
+                t = glm::dot(plane.normal, p0l0) + plane.d;
+                t /= denom;
+                return true;
+            }
+            return false;
+        }
+    };
+
     struct Unit {
         bool active;
         bool isSelected;
         bool hasTarget;
+        i32 elevation;
+        f32 rotation;
+        glm::vec2 pos;
+        glm::vec2 vel;
         glm::vec2 target;
         glm::vec2 steering;
     };
 
     struct Entity {
-        glm::vec2       pos;
-        glm::vec2       vel;
-        f32             rotation;
+        glm::vec3       pos;
+        glm::basis      ori;
+        MeshAsset*      mesh;
         BoxBounds       boundingBox;
         Unit            unit;
     };
@@ -503,11 +578,15 @@ namespace atto
 
         glm::vec2                           ScreenPosToNDC(glm::vec2 pos);
         glm::vec2                           ScreenToWorld(glm::vec2 pos);
-        glm::vec2                           GetMousePosWorldSpace();
 
         void                                CameraSet(Camera& camera);
         void                                CameraDoFreeFlyKeys(Camera &camera);
         void                                CameraDoFreeFlyMouse(Camera& camera, f32 x, f32 y);
+        Ray                                 CameraGetRay(Camera& camera, glm::vec2 pos);
+
+        Entity*                             EntityCreate();
+        
+        glm::vec2                           UnitSteerSeekCurrentTarget(const Unit& unit);
 
         void                                RegisterAssets();
 
@@ -533,8 +612,12 @@ namespace atto
 
         LargeString                         basePathSprites;
         
+        Ray                                 testRay;
+        glm::vec3                           testPoint;
+
     private:
         bool                                InitializeRenderer();
+        bool                                InitializeDebug();
         bool                                InitializeFonts();
         bool                                InitializeAudio();
 
@@ -545,6 +628,7 @@ namespace atto
         ID3DBlob*                           ShaderCompileSource(const char* source, const char* entry, const char* target);
         bool                                ShaderCompile(ShaderAsset& shader);
         bool                                ShaderCompile(const char *source, ShaderInputLayout layout, ShaderAsset& shader);
+        void                                ShaderBind(ShaderAsset& shader);
         
         template<typename _type_> void      ShaderBufferBind(ShaderBuffer<_type_>& shaderBuffer, i32 slot, bool vertexShader, bool pixelShader);
         template<typename _type_> void      ShaderBufferUpload(ShaderBuffer<_type_>& shaderBuffer);
@@ -565,6 +649,14 @@ namespace atto
 
         void                                AudioCreate(AudioAsset& audio);
 
+#if     ATTO_DEBUG_RENDERING
+        void                                DebugRender();
+        void                                DebugAddLine(glm::vec3 a, glm::vec3 b);
+        void                                DebugAddPoint(glm::vec3 p);
+        void                                DebugAddCircle(glm::vec3 p, glm::vec3 n, f32 radius);
+        void                                DebugAddRay(Ray ray);
+#endif
+
         template<typename _type_> _type_*   FindAsset(FixedList<_type_, 2048> & assetList, AssetId id);
 
         AppState*                           app;
@@ -577,6 +669,7 @@ namespace atto
         Camera*                             currentCamera;
 
         MeshAsset*                          primitiveCapsule;
+        MeshAsset*                          buildingBase_01;
         MeshAsset*                          buildingBlock1x1_01;
         MeshAsset*                          buildingBlock1x1_02;
         MeshAsset*                          buildingBlock1x1_03;

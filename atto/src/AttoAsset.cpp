@@ -64,13 +64,8 @@ namespace atto {
         glm::vec4 mousePosWorldSpace = iv * mousePosEyeSpace;
 
         glm::vec2 pos = glm::vec2(mousePosWorldSpace.x, mousePosWorldSpace.y);
-
+        
         return pos;
-    }
-
-    glm::vec2 LeEngine::GetMousePosWorldSpace() {
-        glm::vec2 mousePos = ScreenPosToNDC(app->input->mousePosPixels);
-        return ScreenToWorld(mousePos);
     }
 
     void LeEngine::CameraSet(Camera& camera) {
@@ -121,11 +116,56 @@ namespace atto {
         camera.ori.up = glm::normalize(glm::cross(camera.ori.right, camera.ori.forward));
     }
 
+    Ray LeEngine::CameraGetRay(Camera& camera, glm::vec2 pos) {
+        glm::vec2 mousePos = ScreenPosToNDC(pos);
+        glm::vec4 mousePosClipSpace = glm::vec4(mousePos.x, mousePos.y, -1, 1);
+        glm::vec4 mousePosEyeSpace = glm::inverse(cameraProjection) * mousePosClipSpace;
+        mousePosEyeSpace = glm::vec4(mousePosEyeSpace.x, mousePosEyeSpace.y, -1, 0);
+        glm::vec4 mousePosWorldSpace = glm::inverse(camera.GetViewMatrix()) * mousePosEyeSpace;
+        glm::vec3 mousePosWorldSpace3 = glm::vec3(mousePosWorldSpace.x, mousePosWorldSpace.y, mousePosWorldSpace.z);
+        mousePosWorldSpace3 = glm::normalize(mousePosWorldSpace3);
+
+        Ray ray;
+        ray.origin = camera.pos;
+        ray.direction = mousePosWorldSpace3;
+
+        return ray;
+    }
+
+    Entity* LeEngine::EntityCreate() {
+        Entity entity = {};
+        return entities.Add(entity);
+    }
+
+    glm::vec2 LeEngine::UnitSteerSeekCurrentTarget(const Unit& unit) {
+        const f32 maxSpeed = 1;
+
+        const f32 slowDownInnerRad = 0.2f;
+        const f32 slowDownOuterRad = 0.6f;
+
+        glm::vec2 desiredVel = unit.target - unit.pos;
+        const f32 distance = glm::length(desiredVel);
+
+        if (ApproxEqual(distance, 0.0f)) {
+            return glm::vec2(0, 0);
+        }
+
+        glm::vec2 desiredDir = (desiredVel / distance);
+        f32 speed = glm::clamp(glm::abs(distance - slowDownInnerRad) / slowDownOuterRad, 0.0f, 1.0f) * maxSpeed;
+        desiredVel = (desiredVel / distance) * speed;
+
+        DebugAddCircle(glm::vec3(unit.target.x, .2, unit.target.y), glm::vec3(0, 1, 0), slowDownInnerRad);
+        DebugAddCircle(glm::vec3(unit.target.x, .2, unit.target.y), glm::vec3(0, 1, 0), slowDownOuterRad);
+
+        return desiredVel - unit.vel;
+    }
+
     bool LeEngine::Initialize(AppState* appState) {
         app = appState;
 
         RegisterAssets();
         InitializeRenderer();
+        InitializeDebug();
         InitializeAudio();
         InitializeFonts();
 
@@ -133,23 +173,80 @@ namespace atto {
 
         editorCamera = Camera::CreateDefault();
         gameCamera = Camera::CreateIsometric();
-        CameraSet(editorCamera);
+        CameraSet(gameCamera);
         screenProjection = glm::orthoLH_ZO(0.0f, (f32)renderer.swapChainWidth, (f32)renderer.swapChainHeight, 0.0f, 0.0f, 1.0f);
 
+        buildingBase_01     = LoadMeshAsset(MeshAssetId::Create("assets/prototype/SM_Buildings_Block_Base_01"));
         buildingBlock1x1_01 = LoadMeshAsset(MeshAssetId::Create("assets/prototype/SM_Buildings_Block_1x1_01"));
         buildingBlock1x1_02 = LoadMeshAsset(MeshAssetId::Create("assets/prototype/SM_Buildings_Block_1x1_02"));
         buildingBlock1x1_03 = LoadMeshAsset(MeshAssetId::Create("assets/prototype/SM_Buildings_Block_1x1_03"));
-        primitiveCapsule = LoadMeshAsset(MeshAssetId::Create("assets/primitives/capsule"));
-        textureGrid_01 = LoadTextureAsset(TextureAssetId::Create("assets/prototype/Texture_Grid_01"));
-        textureTriplanarTest = LoadTextureAsset(TextureAssetId::Create("assets/prototype/Texture_Triplanar_Test"));
+        primitiveCapsule    = LoadMeshAsset(MeshAssetId::Create("assets/primitives/capsule"));
+        
+        textureGrid_01          = LoadTextureAsset(TextureAssetId::Create("assets/prototype/Texture_Grid_01"));
+        textureTriplanarTest    = LoadTextureAsset(TextureAssetId::Create("assets/prototype/Texture_Triplanar_Test"));
+        
+        Entity* ground = EntityCreate();
+        ground->mesh = buildingBase_01;
+
+        Entity* unit = EntityCreate();
+        unit->unit.active = true;
+        unit->mesh = primitiveCapsule;
 
         return true;
     }
 
     void LeEngine::Update(AppState* app) {
-        CameraDoFreeFlyKeys(editorCamera);
         if (IsKeyJustDown(app->input, KEY_CODE_Y)) {
             ATTOINFO("UYes");
+        }
+        
+        if (IsKeyJustDown(app->input, KEY_CODE_F2)) {
+            if (currentCamera == &editorCamera) {
+                Application::EnableMouse(*app);
+                CameraSet(gameCamera);
+            }
+            else {
+                Application::DisableMouse(*app);
+                CameraSet(editorCamera);
+            }
+        }
+        
+        if (currentCamera == &editorCamera) {
+            CameraDoFreeFlyKeys(editorCamera);
+        }
+        else {
+            if (IsMouseJustDown(app->input, MOUSE_BUTTON_1)) {
+                testRay = CameraGetRay(gameCamera, app->input->mousePosPixels);
+                Plane groundPlane = Plane::Create(glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+                
+                f32 t = 0.0;
+                if (RayTests::RayPlaneIntersection(testRay, groundPlane, t)) {
+                    testPoint = testRay.Travel(t);
+                }
+            }
+
+            const i32 entityCount = entities.GetCount();
+            for (i32 entityIndex = 0; entityIndex < entityCount; entityIndex++) {
+                Entity& entity = entities[entityIndex];
+                if (entity.unit.active) {
+                    Unit& unit = entity.unit;
+
+                    f32 maxSpeed = 1.0f;
+                    f32 invMass = 1.0f;
+
+                    unit.target = glm::vec2(testPoint.x, testPoint.z);
+
+                    unit.steering = glm::vec2(0, 0);
+                    unit.steering += UnitSteerSeekCurrentTarget(unit);
+                    //unit.steering += UnitSteerWander(entity);
+
+                    unit.steering = ClampLength(unit.steering, maxSpeed) * invMass * app->deltaTime;
+                    unit.vel = ClampLength(unit.vel + unit.steering, maxSpeed);
+                    unit.pos += unit.vel * app->deltaTime;
+
+                    entity.pos = glm::vec3(unit.pos.x, 0.0f, unit.pos.y);
+                }
+            }
         }
     }
 
@@ -180,34 +277,40 @@ namespace atto {
             renderer.shaderBufferCamera.data.view = currentCamera->GetViewMatrix();
             renderer.shaderBufferCamera.data.screenProjection = screenProjection;
 
+            ShaderBufferBind(renderer.shaderBufferInstance, 0, true, false);
             ShaderBufferBind(renderer.shaderBufferCamera, 1, true, false);
             ShaderBufferUpload(renderer.shaderBufferCamera);
 
-            static f32 x = 0;
-            if (app->input->keys[KEY_CODE_LEFT]) {
-                x -= 10.1f * app->deltaTime;
+            TextureBind(textureGrid_01, 0);
+
+            const i32 entityCount = entities.GetCount();
+            for (i32 entityIndex = 0; entityIndex < entityCount; entityIndex++) {
+                Entity& entity = entities[entityIndex];
+                
+                if (entity.mesh != nullptr) {
+
+                    glm::mat4 tranformMatrix = translate(glm::mat4(1), entity.pos);
+
+                    renderer.shaderBufferInstance.data.model = tranformMatrix;
+                    renderer.shaderBufferInstance.data.mvp = renderer.shaderBufferCamera.data.projection * renderer.shaderBufferCamera.data.view * renderer.shaderBufferInstance.data.model;
+
+                    ShaderBufferUpload(renderer.shaderBufferInstance);
+
+                    MeshBind(entity.mesh);
+                    MeshDraw(entity.mesh);
+                }
             }
-            if (app->input->keys[KEY_CODE_RIGHT]) {
-                x += 10.1f * app->deltaTime;
-            }
 
-            renderer.shaderBufferInstance.data.model = glm::rotate(glm::mat4(1), glm::radians(x), glm::vec3(1, 0, 0));
-            renderer.shaderBufferInstance.data.mvp = renderer.shaderBufferCamera.data.projection * renderer.shaderBufferCamera.data.view * renderer.shaderBufferInstance.data.model;
+            //MeshBind(&renderer.unitQuad);
+            //MeshDraw(&renderer.unitQuad);
 
-            ShaderBufferBind(renderer.shaderBufferInstance, 0, true, false);
-            ShaderBufferUpload(renderer.shaderBufferInstance);
-
-            MeshBind(&renderer.unitQuad);
-            MeshDraw(&renderer.unitQuad);
-
-            //TextureBind(textureGrid_01, 0);
-            //MeshBind(buildingBlock1x1_01);
-            //MeshDraw(buildingBlock1x1_01);
-
-            //MeshBind(primitiveCapsule);
-            //MeshDraw(primitiveCapsule);
 
             FontRenderText("The quick brown fox jumps over the lazy cat.", FontAssetId::Create("assets/fonts/Roboto_Regular"), glm::vec2(100, 100));
+ 
+            //DebugAddLine(glm::vec3(0), glm::vec3(10));
+            DebugAddRay(testRay);
+            DebugAddPoint(testPoint);
+            DebugRender();
         }
         //FontRenderText("Yallow", someFont, 0, 0, 0.5f, glm::vec4(1, 1, 0, 1));
 
@@ -315,7 +418,12 @@ namespace atto {
         return nullptr;
     }
 
-   
+    void LeEngine::ShaderBind(ShaderAsset& shader) {
+        renderer.context->IASetInputLayout(shader.inputLayout.Get());
+        renderer.context->VSSetShader(shader.vertexShader.Get(), nullptr, 0);
+        renderer.context->PSSetShader(shader.pixelShader.Get(), nullptr, 0);
+    }
+
     void LeEngine::MeshBind(MeshAsset* mesh) {
         u32 offset = 0;
         renderer.context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);

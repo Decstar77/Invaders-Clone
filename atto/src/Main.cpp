@@ -10,12 +10,9 @@
 
 /*
 * TODO:
-* -- FONT: Add support for kerning
 * -- FONT: Add support for multiple lines
 * -- FONT: Add support for text alignment (INCOMPLETE)
 * -- FONT: Add support for text wrapping (MAYBE)
-* 
-* -- SPRITE: Add support for sprite animation
 * 
 * -- ASSETS: Locked down asset paths
 * -- ASSETS: Add threading to asset loading

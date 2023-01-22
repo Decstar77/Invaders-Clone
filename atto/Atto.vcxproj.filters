@@ -82,5 +82,6 @@
     </ClCompile>
     <ClCompile Include="src\AttoFont.cpp" />
     <ClCompile Include="src\AttoFiles.cpp" />
+    <ClCompile Include="src\AttoDebug.cpp" />
   </ItemGroup>
 </Project>

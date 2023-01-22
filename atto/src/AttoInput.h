@@ -167,7 +167,7 @@ namespace atto
 
         FixedList<b8, MOUSE_BUTTON_LAST> mouseButtons;
         FixedList<b8, MOUSE_BUTTON_LAST> lastMouseButtons;
-        
+
         void*           consoleKeyCallbackDataPointer = nullptr;
         AttoKeyCallback consoleKeyCallback = nullptr;
     };

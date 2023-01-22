@@ -171,7 +171,7 @@ namespace atto
             glfwSetWindowPos(app.window, (mode->width - app.windowWidth) / 2, (mode->height - app.windowHeight) / 2);
         }
 
-        glfwSetInputMode(app.window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        //glfwSetInputMode(app.window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         glfwSetCursorPosCallback(app.window, MousePositionCallback);
         glfwSetKeyCallback(app.window, KeyCallback);
@@ -213,6 +213,15 @@ namespace atto
         
         glfwPollEvents();
     }
+
+    void Application::DisableMouse(AppState& app) {
+        glfwSetInputMode(app.window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    }
+
+    void Application::EnableMouse(AppState& app) {
+        glfwSetInputMode(app.window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    }
+
 
     //class SomeClass {
 //public:
