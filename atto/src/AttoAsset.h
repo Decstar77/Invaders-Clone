@@ -19,6 +19,14 @@ namespace glm
         vec3 right;
         vec3 up;
         vec3 forward;
+        
+        inline static basis identity() {
+            return basis{
+                vec3(1, 0, 0),
+                vec3(0, 1, 0),
+                vec3(0, 0, 1)
+            };
+        }
     };
 
     inline basis toBasis(const glm::mat4& m) {
@@ -55,6 +63,11 @@ namespace glm
 
         return result;
     }
+
+    inline basis basisFromEuler(const glm::vec3& euler) {
+        glm::quat q(euler);
+        return toBasis(glm::toMat4(q));
+    }
 }
 
 namespace atto
@@ -75,14 +88,25 @@ namespace atto
     inline f32 ApproxEqual(f32 a, f32 b, f32 epsilon = 0.0001f) {
         return std::fabs(a - b) < epsilon;
     }
-    
+
+    inline f32 NormalizeEulerAngle(f32 a) {
+        if (a > 180.0f) {
+            a -= 360.0f;
+        }
+        else if (a < -180.0f) {
+            a += 360.0f;
+        }
+        
+        return a;
+    }
+
     struct BoxBounds {
         glm::vec2 min;
         glm::vec2 max;
 
         void Translate(const glm::vec2& translation);
         void CreateFromCenterSize(const glm::vec2& center, const glm::vec2& size);
-        bool BoxBounds::Intersects(const BoxBounds& other);
+        bool Intersects(const BoxBounds& other);
     };
 
     struct RayInfo {
@@ -192,6 +216,7 @@ namespace atto
     enum ShaderInputLayout {
         INPUT_LAYOUT_DEBUG_LINE = 0,
         INPUT_LAYOUT_BASIC_FONT,
+        INPUT_LAYOUT_DRAW_2D,
         INPUT_LAYOUT_POSITION_NORMAL_UV,
     };
 
@@ -227,6 +252,18 @@ namespace atto
         Float4Align glm::mat4 projection;
         Float4Align glm::mat4 view;
         Float4Align glm::mat4 screenProjection;
+    };
+
+    struct ShaderBufferMaterial {
+        Float4Align glm::vec4 settings; // x = Use Triplanar, Y = use textures
+        Float4Align glm::vec4 diffuseColor;
+    };
+
+    struct ShaderBufferDraw2D {
+        Float4Align glm::vec4 posdims;
+        Float4Align glm::vec4 innerColor;
+        Float4Align glm::vec4 outerColor;
+        Float4Align glm::vec4 params;
     };
 
     struct AudioAsset {
@@ -269,7 +306,7 @@ namespace atto
 
         static FontAsset CreateDefault() {
             FontAsset fontAsset = {};
-            fontAsset.fontSize = 32;
+            fontAsset.fontSize = 24;
             return fontAsset;
         }
     };
@@ -400,9 +437,12 @@ namespace atto
         i32                                     swapChainHeight;
         MeshAsset                               unitQuad;
         MeshAsset                               unitCube;
+        MeshAsset                               unitHex;
         ShaderAsset                             testingShader;
         ShaderBuffer<ShaderBufferInstance>      shaderBufferInstance;
         ShaderBuffer<ShaderBufferCamera>        shaderBufferCamera;
+        ShaderBuffer<ShaderBufferMaterial>      shaderBufferMaterial;
+        ShaderBuffer<ShaderBufferDraw2D>        shaderBufferDraw2D;
         SamplerStates                           samplerStates;
         DepthStates                             depthStates;
         RasterizerStates                        rasterizerStates;
@@ -410,11 +450,30 @@ namespace atto
         DebugDrawState                          debugDrawState;
         ShaderAsset                             fontShader;
         wrl::ComPtr<ID3D11Buffer>               fontVertexBuffer;
+        ShaderAsset                             draw2DShader;
+        wrl::ComPtr<ID3D11Buffer>               draw2DVertexBuffer;
+        
     };
 
     struct GlobalAudio {
         wrl::ComPtr<IXAudio2>                  xAudio2;
         IXAudio2MasteringVoice*               masteringVoice;
+    };
+
+    enum Draw2DPrimitiveType {
+        Draw2DPrimitiveType_Rect = 0,
+        Draw2DPrimitiveType_Rect_Outlined = 1,
+        Draw2DPrimitiveType_Rect_Rounded,
+        Draw2DPrimitiveType_Num,
+    };
+
+    struct Draw2DParams {
+        Draw2DPrimitiveType primType;
+        glm::vec2           pos;
+        glm::vec2           dims;
+        glm::vec4           innerColor;
+        glm::vec4           outerColor;
+        f32                 d;
     };
 
     struct Camera {
@@ -431,7 +490,7 @@ namespace atto
             return glm::lookAt(pos, pos + ori.forward, ori.up);
         }
 
-        static Camera CreateDefault() {
+        inline static Camera CreateDefault() {
             Camera camera = {};
             camera.pos.z = 3.0f;
             camera.ori.right = glm::vec3(1.0f, 0.0f, 0.0f);
@@ -445,7 +504,7 @@ namespace atto
             return camera;
         }
 
-        static Camera CreateIsometric() {
+        inline static Camera CreateIsometric() {
             Camera camera = {};
             camera.pos = glm::vec3(7, 14, 7) * 0.5f;
             camera.zoom = 1.0f;
@@ -461,6 +520,23 @@ namespace atto
             camera.ori.forward = -camera.ori.forward;
             camera.nearPlane = 1.0f;
             camera.farPlane = 100.0f;
+            camera.pos += glm::vec3(3.2, 0, 3.2);
+
+            return camera;
+        }
+
+        inline static Camera CreateTopDown() {
+            Camera camera = {};
+            camera.zoom = 1.0f;
+            camera.fov = glm::radians(45.0f);
+            camera.nearPlane = 1.0f;
+            camera.farPlane = 100.0f;
+            camera.pos          = glm::vec3(7, 14, 7) * 0.5f;
+            camera.ori.right    = glm::vec3(1.0f, 0.0f, 0.0f);
+            camera.ori.up       = glm::vec3(0.0f, 0.4602f, -0.8877f);
+            camera.ori.forward  = glm::vec3(0.0f, -0.8878f, -0.4601f);
+            
+            camera.pos += glm::vec3(1, 0, 4);
             return camera;
         }
     };
@@ -475,11 +551,6 @@ namespace atto
         FONT_VALIGN_BOTTOM,
         FONT_VALIGN_MIDDLE,
         FONT_VALIGN_TOP,
-    };
-
-    struct FontVertex {
-        glm::vec2 position;
-        glm::vec2 uv;
     };
 
     struct DrawEntryFont {
@@ -506,6 +577,45 @@ namespace atto
         //VertexBuffer        vertexBuffer;
     };
 
+    struct AABB2D {
+        glm::vec2 min;
+        glm::vec2 max;
+        
+        inline glm::vec2 GetCenter() const {
+            return (min + max) * 0.5f;
+        }
+        
+        inline glm::vec2 GetSize() const {
+            return max - min;
+        }
+
+        inline bool Contains(glm::vec2 p) const {
+            return p.x >= min.x && p.x <= max.x && p.y >= min.y && p.y <= max.y;
+        }
+
+        inline static AABB2D CreateFromMinMax(glm::vec2 min, glm::vec2 max) {
+            AABB2D aabb;
+            aabb.min = min;
+            aabb.max = max;
+            return aabb;
+        }
+    };
+
+    struct UIWindow {
+        SmallString     title;
+        glm::vec2       pos;
+        glm::vec2       dims;
+        glm::vec2       dragOffset;
+        bool            isBeingDragged;
+    };
+
+    struct UIContext {
+        FontAsset*                  font;
+        u32                         cursorPos;
+        FixedList<SmallString, 8>   menuElemets;
+        FixedList<UIWindow, 8>      windows;
+    };
+
     struct Ray {
         glm::vec3 origin;
         glm::vec3 direction;
@@ -527,6 +637,46 @@ namespace atto
         }
     };
 
+    struct Triangle {
+        glm::vec3 a;
+        glm::vec3 b;
+        glm::vec3 c;
+        
+        inline static Triangle Create(glm::vec3 a, glm::vec3 b, glm::vec3 c) {
+            Triangle triangle = {};
+            triangle.a = a;
+            triangle.b = b;
+            triangle.c = c;
+            return triangle;
+        }
+    };
+
+    struct PNTTriangle {
+        glm::vec3 aPos;
+        glm::vec3 aNrm;
+        glm::vec2 aUv;
+        glm::vec3 bPos;
+        glm::vec3 bNrm;
+        glm::vec2 bUv;
+        glm::vec3 cPos;
+        glm::vec3 cNrm;
+        glm::vec2 cUv;
+        
+        inline static PNTTriangle Create(glm::vec3 aPos, glm::vec3 aNrm, glm::vec2 aUv, glm::vec3 bPos, glm::vec3 bNrm, glm::vec2 bUv, glm::vec3 cPos, glm::vec3 cNrm, glm::vec2 cUv) {
+            PNTTriangle triangle = {};
+            triangle.aPos = aPos;
+            triangle.aNrm = aNrm;
+            triangle.aUv = aUv;
+            triangle.bPos = bPos;
+            triangle.bNrm = bNrm;
+            triangle.bUv = bUv;
+            triangle.cPos = cPos;
+            triangle.cNrm = cNrm;
+            triangle.cUv = cUv;
+            return triangle;
+        }
+    };
+
     class RayTests {
     public:
         static bool RayPlaneIntersection(const Ray& ray, const Plane& plane, f32& t) {
@@ -541,24 +691,70 @@ namespace atto
         }
     };
 
+    struct Material {
+        MeshAsset*      mesh;
+        TextureAsset*   diffuseMap;
+        glm::vec4       diffuseColor;
+        bool            useTriplanar;
+        
+        inline static Material CreateDefault() {
+            Material material = {};
+            material.diffuseColor = glm::vec4(0, 0, 0, 1.0f);
+            return material;
+        }
+    };
+
+    struct EntityRef {
+        u32 index;
+        u32 generation;
+    };
+
     struct Unit {
         bool active;
         bool isSelected;
-        bool hasTarget;
         i32 elevation;
         f32 rotation;
         glm::vec2 pos;
         glm::vec2 vel;
-        glm::vec2 target;
         glm::vec2 steering;
+        
+        // Target stuff
+        bool hasTarget;
+        glm::vec2 targetPos;
+        EntityRef targetEnt;
+    };
+
+    struct MapTile {
+        
+    };
+
+    struct Map {
+        i32                         width;
+        i32                         height;
+        FixedList<MapTile, 1024>    tiles;
+
+        inline i32 ToFlatIndex(i32 x, i32 y) const {
+            return y * width + x;
+        }
+
+        inline MapTile& GetTile(i32 x, i32 y) {
+            return tiles[ToFlatIndex(x, y)];
+        }
     };
 
     struct Entity {
         glm::vec3       pos;
         glm::basis      ori;
-        MeshAsset*      mesh;
+        Material        material;
         BoxBounds       boundingBox;
         Unit            unit;
+    };
+
+    struct EditorState {
+        bool                editorActive;
+        UIContext           uiContext;
+        Camera              camera;
+        bool                isFlying;
     };
 
     class LeEngine {
@@ -581,12 +777,16 @@ namespace atto
 
         void                                CameraSet(Camera& camera);
         void                                CameraDoFreeFlyKeys(Camera &camera);
+        void                                CameraDoFreePanKeys(Camera& camera);
         void                                CameraDoFreeFlyMouse(Camera& camera, f32 x, f32 y);
         Ray                                 CameraGetRay(Camera& camera, glm::vec2 pos);
 
         Entity*                             EntityCreate();
+        Entity*                             EntityCreateProptypeWall(glm::vec2 pos);
         
+        void                                UnitSetPos(Entity *unit, glm::vec2 pos);
         glm::vec2                           UnitSteerSeekCurrentTarget(const Unit& unit);
+        glm::vec2                           UnitSteerSeekCurrentTargetKinematic(const Unit& unit);
 
         void                                RegisterAssets();
 
@@ -607,6 +807,15 @@ namespace atto
         bool                                AudioIsSpeakerPlaying(Speaker speaker);
         bool                                AudioIsSpeakerAlive(Speaker speaker);
 
+        void                                UIResetContext(UIContext& context);
+        void                                UIRender(UIContext& context);
+        void                                UIBeginWindow(UIContext& context, const char* title, const glm::vec2& firstPos, const glm::vec2& firstSize);
+        void                                UIEndWindow(UIContext& context);
+        void                                UIBeginMainMenuBar(UIContext& context);
+        bool                                UIBeginMenu(UIContext& context, const char* text);
+        void                                UIEndMainMenuBar(UIContext& context);
+
+
         glm::mat4                           cameraProjection;
         glm::mat4                           screenProjection;
 
@@ -619,6 +828,7 @@ namespace atto
         bool                                InitializeRenderer();
         bool                                InitializeDebug();
         bool                                InitializeFonts();
+        bool                                InitializeDraw2D();
         bool                                InitializeAudio();
 
         byte*                               LoadEntireFile(const char *path, i32 &fileSize);
@@ -636,6 +846,7 @@ namespace atto
 
         void                                MeshCreateUnitQuad(MeshAsset& quad);
         void                                MeshCreateUnitCube(MeshAsset& cube);
+        void                                MeshCreateHex(MeshAsset& hex, f32 outerRadius, f32 innerRadius);
         void                                MeshDataPackPNT(const MeshData &meshData, const glm::mat3 &scalingMatrix, List<f32> &data);
         void                                MeshCreate(MeshAsset& mesh);
         void                                MeshBind(MeshAsset* mesh);
@@ -645,7 +856,16 @@ namespace atto
         void                                TextureBind(TextureAsset* texture, i32 slot);
         
         void                                FontCreate(FontAsset& font);
+        f32                                 FontWidth(FontAsset* fontAsset, const char* text);
+        void                                FontRenderText(const char* text, FontAsset*fontAsset, glm::vec2 pos, glm::vec4 color = glm::vec4(1, 1, 1, 1));
         void                                FontRenderText(const char *text, FontAssetId fontId, glm::vec2 pos, glm::vec4 color = glm::vec4(1,1,1,1));
+
+        void                                Draw2DPrimitive(const Draw2DParams &params);
+        void                                Draw2DRectPosDims(glm::vec2 pos, glm::vec2 dims, glm::vec4 color = glm::vec4(1, 1, 1, 1));
+        void                                Draw2DRectCenterDims(glm::vec2 center, glm::vec2 dims, glm::vec4 color = glm::vec4(1,1,1,1));
+        void                                Draw2DRectOutlinePosDims(glm::vec2 pos, glm::vec2 dims, f32 w, glm::vec4 outerColor, glm::vec4 innerColor);
+        void                                Draw2DRoundedRect(glm::vec2 pos, f32 r, glm::vec4 color = glm::vec4(1, 1, 1, 1));
+        void                                Draw2DCircle(glm::vec2 pos, f32 r, glm::vec4 color = glm::vec4(1, 1, 1, 1));
 
         void                                AudioCreate(AudioAsset& audio);
 
@@ -664,8 +884,9 @@ namespace atto
         GlobalRenderer                      renderer;
         GlobalAudio                         audio;
 
+        EditorState                         editorState;
+
         Camera                              gameCamera;
-        Camera                              editorCamera;
         Camera*                             currentCamera;
 
         MeshAsset*                          primitiveCapsule;
@@ -673,8 +894,10 @@ namespace atto
         MeshAsset*                          buildingBlock1x1_01;
         MeshAsset*                          buildingBlock1x1_02;
         MeshAsset*                          buildingBlock1x1_03;
+        MeshAsset*                          tank_01;
         TextureAsset*                       textureGrid_01;
         TextureAsset*                       textureTriplanarTest;
+        TextureAsset*                       textureBaseTank;
 
         FixedList<MeshAsset,    2048>       meshAssets;
         FixedList<TextureAsset, 2048>       textureAssets;

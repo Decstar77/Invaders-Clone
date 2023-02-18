@@ -168,6 +168,7 @@
     <ClCompile Include="src\AttoAudio.cpp" />
     <ClCompile Include="src\AttoContainers.cpp" />
     <ClCompile Include="src\AttoDebug.cpp" />
+    <ClCompile Include="src\AttoDraw2D.cpp" />
     <ClCompile Include="src\AttoFiles.cpp" />
     <ClCompile Include="src\AttoFont.cpp" />
     <ClCompile Include="src\AttoGrad.cpp" />

@@ -9,6 +9,8 @@
 #include <filesystem>
 #include <random>
 
+#define rgba(r, g, b, a) glm::vec4( (f32)r / 255.0f, (f32)g / 255.0f, (f32)b / 255.0f, a )
+
 namespace atto {
     static void FindAllFiles(const char* path, const char* extension, List<LargeString>& files) {
         for (const auto& entry : std::filesystem::recursive_directory_iterator(path)) {
@@ -95,7 +97,35 @@ namespace atto {
         }
     }
 
+    void LeEngine::CameraDoFreePanKeys(Camera& camera) {
+        f32 speed = 1.0f;
+        if (app->input->keys[KEY_CODE_W]) {
+            camera.pos += glm::vec3(0, 0, -1) * speed * app->deltaTime;
+        }
+        if (app->input->keys[KEY_CODE_S]) {
+            camera.pos += glm::vec3(0, 0, 1) * speed * app->deltaTime;
+        }
+        if (app->input->keys[KEY_CODE_A]) {
+            camera.pos += glm::vec3(-1, 0, 0) * speed * app->deltaTime;
+        }
+        if (app->input->keys[KEY_CODE_D]) {
+            camera.pos += glm::vec3(1, 0, 0) * speed * app->deltaTime;
+        }
+        if (app->input->keys[KEY_CODE_E]) {
+            camera.pos += glm::vec3(0, 1, 0) * speed * app->deltaTime;
+        }
+        if (app->input->keys[KEY_CODE_Q]) {
+            camera.pos += glm::vec3(0, -1, 0) * speed * app->deltaTime;
+        }
+    }
+
     void LeEngine::CameraDoFreeFlyMouse(Camera& camera, f32 x, f32 y) {
+        if (editorState.editorActive) {
+            if (!editorState.isFlying) {
+                return;
+            }
+        }
+
         f32 sensitivity = 0.1f;
         camera.yaw += x * sensitivity;
         camera.pitch += y * sensitivity;
@@ -134,7 +164,25 @@ namespace atto {
 
     Entity* LeEngine::EntityCreate() {
         Entity entity = {};
+        entity.pos = glm::vec3(0, 0, 0);
+        entity.ori = glm::basis::identity();
+        entity.material = Material::CreateDefault();
         return entities.Add(entity);
+    }
+
+    Entity* LeEngine::EntityCreateProptypeWall(glm::vec2 pos) {
+        Entity* wall = EntityCreate();
+        wall->material.mesh = buildingBlock1x1_01;
+        wall->material.diffuseMap = textureGrid_01;
+        wall->material.useTriplanar = true;
+        wall->pos = glm::vec3(pos.x, 0, pos.y);
+        
+        return wall;
+    }
+
+    void LeEngine::UnitSetPos(Entity* unit, glm::vec2 pos) {
+        unit->unit.pos = pos;
+        unit->pos = glm::vec3(pos.x, 0, pos.y);
     }
 
     glm::vec2 LeEngine::UnitSteerSeekCurrentTarget(const Unit& unit) {
@@ -143,7 +191,7 @@ namespace atto {
         const f32 slowDownInnerRad = 0.2f;
         const f32 slowDownOuterRad = 0.6f;
 
-        glm::vec2 desiredVel = unit.target - unit.pos;
+        glm::vec2 desiredVel = unit.targetPos - unit.pos;
         const f32 distance = glm::length(desiredVel);
 
         if (ApproxEqual(distance, 0.0f)) {
@@ -154,10 +202,29 @@ namespace atto {
         f32 speed = glm::clamp(glm::abs(distance - slowDownInnerRad) / slowDownOuterRad, 0.0f, 1.0f) * maxSpeed;
         desiredVel = (desiredVel / distance) * speed;
 
-        DebugAddCircle(glm::vec3(unit.target.x, .2, unit.target.y), glm::vec3(0, 1, 0), slowDownInnerRad);
-        DebugAddCircle(glm::vec3(unit.target.x, .2, unit.target.y), glm::vec3(0, 1, 0), slowDownOuterRad);
+        DebugAddCircle(glm::vec3(unit.targetPos.x, .2, unit.targetPos.y), glm::vec3(0, 1, 0), slowDownInnerRad);
+        DebugAddCircle(glm::vec3(unit.targetPos.x, .2, unit.targetPos.y), glm::vec3(0, 1, 0), slowDownOuterRad);
 
         return desiredVel - unit.vel;
+    }
+
+    glm::vec2 LeEngine::UnitSteerSeekCurrentTargetKinematic(const Unit& unit) {
+        const f32 radius = 0.05f;
+        const f32 timeToTarget = 1.2f;
+        const f32 maxSpeed = 1;
+
+        glm::vec2 steering = unit.targetPos - unit.pos;
+        const f32 distance = glm::length(steering);
+        if (distance < radius) {
+            return glm::vec2(0, 0);
+        }
+
+        //steering /= timeToTarget;
+        steering = ClampLength(steering, maxSpeed);
+
+        DebugAddCircle(glm::vec3(unit.targetPos.x, .2, unit.targetPos.y), glm::vec3(0, 1, 0), radius);
+
+        return steering;
     }
 
     bool LeEngine::Initialize(AppState* appState) {
@@ -168,11 +235,12 @@ namespace atto {
         InitializeDebug();
         InitializeAudio();
         InitializeFonts();
+        InitializeDraw2D();
 
         FontCreate(fontAssets[0]);
 
-        editorCamera = Camera::CreateDefault();
-        gameCamera = Camera::CreateIsometric();
+        editorState.camera = Camera::CreateDefault();
+        gameCamera = Camera::CreateTopDown();
         CameraSet(gameCamera);
         screenProjection = glm::orthoLH_ZO(0.0f, (f32)renderer.swapChainWidth, (f32)renderer.swapChainHeight, 0.0f, 0.0f, 1.0f);
 
@@ -180,18 +248,47 @@ namespace atto {
         buildingBlock1x1_01 = LoadMeshAsset(MeshAssetId::Create("assets/prototype/SM_Buildings_Block_1x1_01"));
         buildingBlock1x1_02 = LoadMeshAsset(MeshAssetId::Create("assets/prototype/SM_Buildings_Block_1x1_02"));
         buildingBlock1x1_03 = LoadMeshAsset(MeshAssetId::Create("assets/prototype/SM_Buildings_Block_1x1_03"));
+        tank_01             = LoadMeshAsset(MeshAssetId::Create("assets/tanks/tank_01"));
         primitiveCapsule    = LoadMeshAsset(MeshAssetId::Create("assets/primitives/capsule"));
         
         textureGrid_01          = LoadTextureAsset(TextureAssetId::Create("assets/prototype/Texture_Grid_01"));
         textureTriplanarTest    = LoadTextureAsset(TextureAssetId::Create("assets/prototype/Texture_Triplanar_Test"));
-        
+        textureBaseTank         = LoadTextureAsset(TextureAssetId::Create("assets/tanks/textures/TF_TankFree_Base_Color_Y"));
+
+#if 1
         Entity* ground = EntityCreate();
-        ground->mesh = buildingBase_01;
+        ground->material.diffuseMap = textureGrid_01;
+        ground->material.mesh = buildingBase_01;
+        ground->material.useTriplanar = true;
 
         Entity* unit = EntityCreate();
+        UnitSetPos(unit, glm::vec2(3, 3));
         unit->unit.active = true;
-        unit->mesh = primitiveCapsule;
+        unit->unit.hasTarget = false;
+        unit->material.mesh = primitiveCapsule;
+        unit->material.diffuseMap = textureBaseTank;
 
+        const char* testMap =
+            "********"
+            "*      *"
+            "*      *"
+            "*      *"
+            "*      *"
+            "*      *"
+            "*      *"
+            "********";
+
+        for (i32 x = 0; x < 8; x++) {
+            for (i32 y = 0; y < 8; y++) {
+                i32 index = y * 8 + x;
+                if (testMap[index] == '*') {
+                    EntityCreateProptypeWall(glm::vec2(x, y));
+                }
+            }
+        }
+
+#else 
+#endif
         return true;
     }
 
@@ -201,20 +298,36 @@ namespace atto {
         }
         
         if (IsKeyJustDown(app->input, KEY_CODE_F2)) {
-            if (currentCamera == &editorCamera) {
-                Application::EnableMouse(*app);
+            if (currentCamera == &editorState.camera) {
+                Application::SetMouseStateCaptured(*app);
+
                 CameraSet(gameCamera);
+                editorState.editorActive = false;
             }
             else {
-                Application::DisableMouse(*app);
-                CameraSet(editorCamera);
+                CameraSet(editorState.camera);
+                editorState.editorActive = true;
             }
         }
         
-        if (currentCamera == &editorCamera) {
-            CameraDoFreeFlyKeys(editorCamera);
+        if (editorState.editorActive) {
+            if (IsMouseJustDown(app->input, MOUSE_BUTTON_2)) {
+                Application::SetMouseStateDisabled(*app);
+                editorState.isFlying = true;
+            }
+
+            if (IsMouseJustUp(app->input, MOUSE_BUTTON_2)) {
+                Application::SetMouseStateFree(*app);
+                editorState.isFlying = false;
+            }
+            
+            if (editorState.isFlying) {
+                CameraDoFreeFlyKeys(editorState.camera);
+            }
         }
         else {
+            CameraDoFreePanKeys(gameCamera);
+
             if (IsMouseJustDown(app->input, MOUSE_BUTTON_1)) {
                 testRay = CameraGetRay(gameCamera, app->input->mousePosPixels);
                 Plane groundPlane = Plane::Create(glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
@@ -222,32 +335,56 @@ namespace atto {
                 f32 t = 0.0;
                 if (RayTests::RayPlaneIntersection(testRay, groundPlane, t)) {
                     testPoint = testRay.Travel(t);
+                    // HACK!!!!!
+                    entities[1].unit.hasTarget = true;
                 }
             }
 
             const i32 entityCount = entities.GetCount();
             for (i32 entityIndex = 0; entityIndex < entityCount; entityIndex++) {
                 Entity& entity = entities[entityIndex];
-                if (entity.unit.active) {
+                if (entity.unit.active && entity.unit.hasTarget) {
                     Unit& unit = entity.unit;
 
-                    f32 maxSpeed = 1.0f;
-                    f32 invMass = 1.0f;
-
-                    unit.target = glm::vec2(testPoint.x, testPoint.z);
+                    unit.targetPos = glm::vec2(testPoint.x, testPoint.z);
 
                     unit.steering = glm::vec2(0, 0);
-                    unit.steering += UnitSteerSeekCurrentTarget(unit);
-                    //unit.steering += UnitSteerWander(entity);
+                    //unit.steering += UnitSteerSeekCurrentTarget(unit);
+                    //unit.steering = ClampLength(unit.steering, maxSpeed) * invMass * app->deltaTime;
+                    //unit.vel = ClampLength(unit.vel + unit.steering, maxSpeed);
+                    
+                    glm::vec2 toTarget = unit.targetPos - unit.pos;
+                    f32 theta = NormalizeEulerAngle(glm::atan(toTarget.x, toTarget.y));
+                    f32 delta = NormalizeEulerAngle(glm::abs(theta - unit.rotation) );
+                    f32 rotationDirection = glm::sign(theta - unit.rotation);
+                    f32 rotationAmount = glm::radians(55.0f) * app->deltaTime;
+                    
+                    // Stops overshooting
+                    if (rotationAmount > delta){
+                        unit.rotation = theta;
+                    }
+                    else {
+                        unit.rotation += rotationDirection * rotationAmount;
+                    }
 
-                    unit.steering = ClampLength(unit.steering, maxSpeed) * invMass * app->deltaTime;
-                    unit.vel = ClampLength(unit.vel + unit.steering, maxSpeed);
+                    unit.rotation = NormalizeEulerAngle(unit.rotation);
+
+                    if (delta < glm::radians(5.0f)) {
+                        unit.steering = UnitSteerSeekCurrentTargetKinematic(unit);
+                    }
+
+                    unit.vel = unit.steering;
                     unit.pos += unit.vel * app->deltaTime;
 
                     entity.pos = glm::vec3(unit.pos.x, 0.0f, unit.pos.y);
+                    entity.ori = glm::basisFromEuler(glm::vec3(0.0f, unit.rotation, 0.0f));
                 }
             }
         }
+
+        //UIResetContext(editorState.uiContext);
+        //UIBeginWindow(editorState.uiContext, "Test", glm::vec2(0), glm::vec2(200, 200));
+        //UIEndWindow(editorState.uiContext);
     }
 
     void LeEngine::Render(AppState* app) {
@@ -264,7 +401,7 @@ namespace atto {
         renderer.context->ClearRenderTargetView(renderer.swapChainRenderTarget.Get(), clearColor);
         renderer.context->ClearDepthStencilView(renderer.swapChainDepthView.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
         renderer.context->RSSetViewports(1, &viewport);
-        renderer.context->RSSetState(renderer.rasterizerStates.cullNone.Get());
+        renderer.context->RSSetState(renderer.rasterizerStates.cullBack.Get());
         renderer.context->OMSetDepthStencilState(renderer.depthStates.depthEnabled.Get(), 0);
         renderer.context->OMSetRenderTargets( 1, renderer.swapChainRenderTarget.GetAddressOf(), renderer.swapChainDepthView.Get());
 
@@ -278,39 +415,59 @@ namespace atto {
             renderer.shaderBufferCamera.data.screenProjection = screenProjection;
 
             ShaderBufferBind(renderer.shaderBufferInstance, 0, true, false);
+            ShaderBufferBind(renderer.shaderBufferMaterial, 0, false, true);
             ShaderBufferBind(renderer.shaderBufferCamera, 1, true, false);
             ShaderBufferUpload(renderer.shaderBufferCamera);
 
-            TextureBind(textureGrid_01, 0);
-
+#if 1
             const i32 entityCount = entities.GetCount();
             for (i32 entityIndex = 0; entityIndex < entityCount; entityIndex++) {
                 Entity& entity = entities[entityIndex];
-                
-                if (entity.mesh != nullptr) {
-
-                    glm::mat4 tranformMatrix = translate(glm::mat4(1), entity.pos);
-
+                Material& material = entity.material;
+                if (material.mesh != nullptr) {
+                    glm::mat4 tranformMatrix = glm::translate(glm::mat4(1), entity.pos) * glm::toMat4(entity.ori);
                     renderer.shaderBufferInstance.data.model = tranformMatrix;
                     renderer.shaderBufferInstance.data.mvp = renderer.shaderBufferCamera.data.projection * renderer.shaderBufferCamera.data.view * renderer.shaderBufferInstance.data.model;
 
-                    ShaderBufferUpload(renderer.shaderBufferInstance);
+                    renderer.shaderBufferMaterial.data.settings.x = material.useTriplanar ? 1.0f : 0.0f;
+                    renderer.shaderBufferMaterial.data.settings.y = material.diffuseMap == nullptr ? 0.0f : 1.0f;
+                    renderer.shaderBufferMaterial.data.diffuseColor = material.diffuseColor;
 
-                    MeshBind(entity.mesh);
-                    MeshDraw(entity.mesh);
+                    ShaderBufferUpload(renderer.shaderBufferInstance);
+                    ShaderBufferUpload(renderer.shaderBufferMaterial);
+
+                    if (material.diffuseMap) {
+                        TextureBind(material.diffuseMap, 0);
+                    }
+
+                    MeshBind(material.mesh);
+                    MeshDraw(material.mesh);
                 }
             }
+#else 
+            renderer.shaderBufferInstance.data.model = glm::mat4(1);
+            renderer.shaderBufferInstance.data.mvp = renderer.shaderBufferCamera.data.projection * renderer.shaderBufferCamera.data.view * renderer.shaderBufferInstance.data.model;
 
-            //MeshBind(&renderer.unitQuad);
-            //MeshDraw(&renderer.unitQuad);
+            ShaderBufferUpload(renderer.shaderBufferInstance);
 
-
-            FontRenderText("The quick brown fox jumps over the lazy cat.", FontAssetId::Create("assets/fonts/Roboto_Regular"), glm::vec2(100, 100));
- 
-            //DebugAddLine(glm::vec3(0), glm::vec3(10));
+            MeshBind(&renderer.unitHex);
+            MeshDraw(&renderer.unitHex);
+#endif
+      
             DebugAddRay(testRay);
             DebugAddPoint(testPoint);
             DebugRender();
+
+            UIRender(editorState.uiContext);
+            //Draw2DRectPosDims(glm::vec2(0, 0), glm::vec2(300, 43), glm::vec4(0.2, 0.2, 0.2, 0.95));
+            //if (app->input->mousePosPixels.x < 73 && app->input->mousePosPixels.y < 43) {
+            //    Draw2DRectOutlinePosDims(glm::vec2(0, 0), glm::vec2(73, 43), 2.5f, glm::vec4(0.95f), glm::vec4(0));
+            //}
+            //
+            //FontRenderText("Paint", FontAssetId::Create("assets/fonts/Roboto_Regular"), glm::vec2(12.5f, 30));
+
+            //DebugAddLine(glm::vec3(0), glm::vec3(10));
+
         }
         //FontRenderText("Yallow", someFont, 0, 0, 0.5f, glm::vec4(1, 1, 0, 1));
 
@@ -342,8 +499,8 @@ namespace atto {
             ATTOFATAL("DX11: Unable to create render target view");
         }
 
-        renderer.swapChainDepthView->Release();
-        renderer.swapChainDepthBuffer->Release();
+        renderer.swapChainDepthView.Reset();
+        renderer.swapChainDepthBuffer.Reset();
         
         D3D11_TEXTURE2D_DESC depthBufferDescriptor = {};
         depthBufferDescriptor.Width = app->windowWidth;
@@ -377,7 +534,7 @@ namespace atto {
     }
 
     void LeEngine::CallbackMousePosition(f32 x, f32 y) {
-        CameraDoFreeFlyMouse(editorCamera, x, y);
+        CameraDoFreeFlyMouse(editorState.camera, x, y);
     }
 
     MeshAsset* LeEngine::LoadMeshAsset(MeshAssetId id) {
@@ -416,6 +573,73 @@ namespace atto {
 
     AudioAsset* LeEngine::LoadAudioAsset(AudioAssetId id) {
         return nullptr;
+    }
+
+    void LeEngine::UIResetContext(UIContext& context) {
+        context.font = FindAsset(fontAssets, FontAssetId::Create("assets/fonts/Roboto_Regular").ToRawId());
+        if (context.font->isLoaded == false) {
+            FontCreate(*context.font);
+        }
+    }
+
+    void LeEngine::UIRender(UIContext& context) {
+        // Render the windows
+        const f32 bottomPad = 5;
+        const i32 windowCount = context.windows.GetCount();
+        for (i32 windowIndex = 0; windowIndex < windowCount; windowIndex++) {
+            UIWindow& window = context.windows[windowIndex];
+            Draw2DRectPosDims(window.pos, window.dims, rgba(189, 195, 199, 1.0));
+            Draw2DRectPosDims(window.pos, glm::vec2(window.dims.x, context.font->fontSize), rgba(155, 89, 182, 1.0));
+            const f32 fontWidth = FontWidth(context.font, window.title.GetCStr());
+            const glm::vec2 titlePos = glm::vec2(window.pos.x + window.dims.x / 2.0f - fontWidth / 2.0f, window.pos.y + context.font->fontSize - bottomPad);
+            FontRenderText( window.title.GetCStr(), context.font, titlePos);
+        }
+    }
+
+    void LeEngine::UIBeginWindow(UIContext& context, const char* title, const glm::vec2& firstPos, const glm::vec2& firstSize) {
+        UIWindow* window = nullptr;
+        const i32 windowCount = context.windows.GetCount();
+        for (i32 windowIndex = 0; windowIndex < windowCount; windowIndex++) {
+            UIWindow& currentWindow = context.windows[windowIndex];
+            if (currentWindow.title == title) {
+                window = &currentWindow;
+                break;
+            }
+        }
+
+        if (window == nullptr) {
+            window = context.windows.Add({});
+            window->title = title;
+            window->pos = firstPos;
+            window->dims = firstSize;
+        }
+
+        AABB2D windowBounds = AABB2D::CreateFromMinMax(window->pos, window->pos + window->dims);
+
+        const glm::vec2& mousePos = app->input->mousePosPixels;
+        if (IsMouseJustDown(app->input, MOUSE_BUTTON_1)) {
+            if (windowBounds.Contains(mousePos)) {
+                window->isBeingDragged = true;
+                window->dragOffset = window->pos - mousePos;
+            }
+        }
+
+        if (IsMouseJustUp(app->input, MOUSE_BUTTON_1)) {
+            window->isBeingDragged = false;
+        }
+
+        if (window->isBeingDragged) {
+            window->pos = mousePos + window->dragOffset;
+        }
+        
+
+        // Is mouse in windows bounds
+        
+
+    }
+
+    void LeEngine::UIEndWindow(UIContext& context) {
+
     }
 
     void LeEngine::ShaderBind(ShaderAsset& shader) {

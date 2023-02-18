@@ -369,6 +369,8 @@ namespace atto {
             }
 
             cbuffer Material : register(b0) {
+                float4 matSettings; // X = triplanars, Y = use textures,
+                float4 diffuseColor;
             }
 
             SamplerState pointWrap : register(s0);
@@ -400,12 +402,38 @@ namespace atto {
 
                 float3 sample = x * triW.x + y * triW.y + z * triW.z;
                 return float4(sample, 1);
-                //return float4(1,1,1,1);
+            }
+
+            float4 DirectionLighting(float3 worldPos, float3 worldNrm, float3 lightDir, float3 lightColor, float3 lightAmbient) {
+                float3 light = lightColor * saturate(dot(worldNrm, lightDir));
+                float3 ambient = lightAmbient * lightColor;
+                return float4(light + ambient, 1);
             }
 
             float4 PSMain(VS_OUTPUT input) : SV_TARGET {
+                bool useTextures = matSettings.y > 0;
+                bool useTriplanars = matSettings.x > 0;
                 float3 nrm = normalize(input.worldNrm);
-                return TriplanarSampling(input.worldPos, nrm, 1);
+                float3 lightDir = normalize(float3(1, 1, -1));
+                float3 lightColor = float3(1, 1, 1) * 1;
+                float3 lightAmbient = float3(0.2, 0.2, 0.2);
+                if (useTextures) {
+                    if (useTriplanars) {
+                        float4 diffuse = TriplanarSampling(input.worldPos, nrm, 1);
+                        float4 light = DirectionLighting(input.worldPos, nrm, lightDir, lightColor, lightAmbient);
+
+                        return diffuse * light;
+                    } else {
+                        float4 diffuse = diffuseTexture.Sample(linearWrap, input.uv);
+                        float4 light = DirectionLighting(input.worldPos, nrm, lightDir, lightColor, lightAmbient);
+                        return diffuse * light;
+                    }
+                } else {
+                    float4 light = DirectionLighting(input.worldPos, nrm, lightDir, lightColor, lightAmbient);
+                    float4 backLight = DirectionLighting(input.worldPos, nrm, -lightDir, lightColor * 0.3, lightAmbient);
+                    return diffuseColor * (light + backLight);
+                }   
+
                 //return float4(nrm * 2 - float3(1,1,1), 1);
                 //float4 diffuse = diffuseTexture.Sample(linearWrap, input.uv);
                 //return diffuse;
@@ -416,9 +444,12 @@ namespace atto {
         ShaderCompile(testingShaderSource, INPUT_LAYOUT_POSITION_NORMAL_UV, renderer.testingShader);
         
         MeshCreateUnitQuad(renderer.unitQuad);
+        //MeshCreateHex(renderer.unitHex, Hex::outerRadius, Hex::innerRadius);
         
         ShaderBufferCreate(renderer.shaderBufferInstance);
         ShaderBufferCreate(renderer.shaderBufferCamera);
+        ShaderBufferCreate(renderer.shaderBufferMaterial);
+        ShaderBufferCreate(renderer.shaderBufferDraw2D);
 
         ATTOTRACE("Initalized DX11");
 
@@ -442,6 +473,7 @@ namespace atto {
             list.Add(pos);
         }break;
 
+        case atto::INPUT_LAYOUT_DRAW_2D:
         case atto::INPUT_LAYOUT_BASIC_FONT:
         {
             D3D11_INPUT_ELEMENT_DESC pos = {};
@@ -696,6 +728,47 @@ namespace atto {
         vertexData.pSysMem = vertices;
 
         if (FAILED(renderer.device->CreateBuffer(&vertexDesc, &vertexData, &quad.vertexBuffer))) {
+            ATTOERROR("Could not create vertex buffer");
+        }
+    }
+
+    void LeEngine::MeshCreateHex(MeshAsset& hex, f32 outerRadius, f32 innerRadius) {
+        glm::vec3 center = glm::vec3(0, 0, 0);
+        glm::vec3 normal = glm::vec3(0, 1, 0);
+        glm::vec2 uv = glm::vec2(0, 0);
+        glm::vec3 corners[] = {
+            glm::vec3(0, 0, outerRadius),
+            glm::vec3(innerRadius, 0, 0.5f * outerRadius),
+            glm::vec3(innerRadius, 0, -0.5f * outerRadius),
+            glm::vec3(0, 0, -outerRadius),
+            glm::vec3(-innerRadius, 0, -0.5f * outerRadius),
+            glm::vec3(-innerRadius, 0, 0.5f * outerRadius)
+        };
+
+        PNTTriangle triangles[] = {
+            PNTTriangle::Create(center, normal, uv, corners[0], normal, uv, corners[1], normal, uv),
+            PNTTriangle::Create(center, normal, uv, corners[1], normal, uv, corners[2], normal, uv),
+            PNTTriangle::Create(center, normal, uv, corners[2], normal, uv, corners[3], normal, uv),
+            PNTTriangle::Create(center, normal, uv, corners[3], normal, uv, corners[4], normal, uv),
+            PNTTriangle::Create(center, normal, uv, corners[4], normal, uv, corners[5], normal, uv),
+            PNTTriangle::Create(center, normal, uv, corners[5], normal, uv, corners[0], normal, uv)
+        };
+
+        hex.vertexCount = 18;
+        hex.vertexStride = (3 + 3 + 2) * sizeof(f32);
+        hex.indexCount = 0;
+
+        D3D11_BUFFER_DESC vertexDesc = {};
+        vertexDesc.Usage = D3D11_USAGE_IMMUTABLE;
+        vertexDesc.ByteWidth = sizeof(triangles);
+        vertexDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+        vertexDesc.CPUAccessFlags = 0;
+        vertexDesc.MiscFlags = 0;
+
+        D3D11_SUBRESOURCE_DATA vertexData = {};
+        vertexData.pSysMem = triangles;
+
+        if (FAILED(renderer.device->CreateBuffer(&vertexDesc, &vertexData, &hex.vertexBuffer))) {
             ATTOERROR("Could not create vertex buffer");
         }
     }

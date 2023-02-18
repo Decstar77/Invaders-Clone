@@ -52,6 +52,11 @@ namespace atto
             }
         )";
 
+    struct FontVertex {
+        glm::vec2 position;
+        glm::vec2 uv;
+    };
+
     bool LeEngine::InitializeFonts() {
         bool compiled = ShaderCompile(basicFontShader, INPUT_LAYOUT_BASIC_FONT, renderer.fontShader);
         if (!compiled) {
@@ -131,19 +136,32 @@ namespace atto
         delete[] pixels;
     }
 
-    void LeEngine::FontRenderText(const char* text, FontAssetId fontId, glm::vec2 pos, glm::vec4 color) {
-        FontAsset* fontPtr = FindAsset(fontAssets, fontId.ToRawId());
-        if (fontPtr == nullptr) {
-            ATTOERROR("Could not find font asset");
-            return;
+    f32 LeEngine::FontWidth(FontAsset* font, const char* text) {
+        const f32 scale = stbtt_ScaleForPixelHeight(&font->info, font->fontSize);
+        const i32 textLength = (i32)strlen(text);
+
+        u32 intWidth = 0;
+        for (i32 charIndex = 0; charIndex < textLength; charIndex++) {
+            i32 cp = (i32)text[charIndex];
+            if (cp < 32 || cp >= 128) {
+                continue;
+            }
+
+            i32 leftSideBearing = 0;
+            i32 advance = 0;
+            stbtt_GetCodepointHMetrics(&font->info, cp, &advance, &leftSideBearing);
+
+            intWidth += advance;
+            if (text[charIndex + 1]) {
+                intWidth -= stbtt_GetCodepointKernAdvance(&font->info, cp, (i32)text[charIndex + 1]);
+            }
         }
 
-        FontAsset& font = *fontPtr;
-        if (font.isLoaded == false) {
-            FontCreate(font);
-        }
-
-        f32 scale = stbtt_ScaleForPixelHeight(&font.info, font.fontSize);
+        return (f32)intWidth * scale;
+    }
+    
+    void LeEngine::FontRenderText(const char* text, FontAsset* font, glm::vec2 pos, glm::vec4 color /*= glm::vec4(1, 1, 1, 1)*/) {
+        f32 scale = stbtt_ScaleForPixelHeight(&font->info, font->fontSize);
         f32 xpos = pos.x;
         f32 ypos = pos.y;
 
@@ -155,7 +173,7 @@ namespace atto
             }
 
             stbtt_aligned_quad quad = {};
-            stbtt_GetBakedQuad(font.chardata.GetData(), 256, 256, cp - 32, &xpos, &ypos, &quad, true);
+            stbtt_GetBakedQuad(font->chardata.GetData(), 256, 256, cp - 32, &xpos, &ypos, &quad, true);
 
             f32 vertices[6][4] = {
                 { quad.x0, quad.y0, quad.s0, quad.t0 },
@@ -168,8 +186,8 @@ namespace atto
             };
 
             if (text[charIndex + 1]) {
-                f32 kadv = (f32)stbtt_GetCodepointKernAdvance(&font.info, cp, (i32)text[charIndex + 1]);
-                xpos -= kadv * scale;
+                f32 kadv = (f32)stbtt_GetCodepointKernAdvance(&font->info, cp, (i32)text[charIndex + 1]);
+                xpos += kadv * scale;
             }
 
             D3D11_MAPPED_SUBRESOURCE mappedResource = {};
@@ -192,9 +210,23 @@ namespace atto
             renderer.context->IASetInputLayout(renderer.fontShader.inputLayout.Get());
             renderer.context->VSSetShader(renderer.fontShader.vertexShader.Get(), nullptr, 0);
             renderer.context->PSSetShader(renderer.fontShader.pixelShader.Get(), nullptr, 0);
-            renderer.context->PSSetShaderResources(0, 1, font.srv.GetAddressOf());
+            renderer.context->PSSetShaderResources(0, 1, font->srv.GetAddressOf());
             renderer.context->Draw(6, 0);
         }
+    }
+    
+    void LeEngine::FontRenderText(const char* text, FontAssetId fontId, glm::vec2 pos, glm::vec4 color) {
+        FontAsset* font = FindAsset(fontAssets, fontId.ToRawId());
+        if (font == nullptr) {
+            ATTOERROR("Could not find font asset");
+            return;
+        }
+
+        if (font->isLoaded == false) {
+            FontCreate(*font);
+        }
+      
+        FontRenderText(text, font, pos, color);
     }
 
 

@@ -134,18 +134,10 @@ namespace atto
             ATTOFATAL("Could not init GLFW, your windows is f*cked");
             return false;
         }
-        
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
-
-#if ATTO_DEBUG_RENDERING
-        glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
-#endif
 
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         //glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
-        glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_FALSE);
-        //glfwWindowHint(GLFW_SAMPLES, 4);
+        //glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_FALSE);
 
         if (app.windowFullscreen) {
             app.monitor = glfwGetPrimaryMonitor();
@@ -214,14 +206,17 @@ namespace atto
         glfwPollEvents();
     }
 
-    void Application::DisableMouse(AppState& app) {
+    void Application::SetMouseStateDisabled(AppState& app) {
         glfwSetInputMode(app.window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     }
 
-    void Application::EnableMouse(AppState& app) {
+    void Application::SetMouseStateFree(AppState& app) {
         glfwSetInputMode(app.window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     }
 
+    void Application::SetMouseStateCaptured(AppState& app) {
+        glfwSetInputMode(app.window, GLFW_CURSOR, GLFW_CURSOR_CAPTURED);
+    }
 
     //class SomeClass {
 //public:
